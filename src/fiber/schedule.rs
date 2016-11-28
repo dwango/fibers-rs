@@ -4,6 +4,7 @@ use std::sync::mpsc as std_mpsc;
 use std::cell::RefCell;
 use futures::{self, Future, IntoFuture};
 
+use io::poll;
 use fiber;
 
 lazy_static! {
@@ -31,10 +32,10 @@ pub struct Scheduler {
     run_queue: VecDeque<fiber::FiberId>,
     request_tx: RequestSender,
     request_rx: RequestReceiver,
+    poller_pool: poll::PollerPoolHandle,
 }
 impl Scheduler {
-    /// TODO: PollFactory
-    pub fn new() -> Self {
+    pub fn new(poller_pool: poll::PollerPoolHandle) -> Self {
         let (request_tx, request_rx) = std_mpsc::channel();
         Scheduler {
             scheduler_id: NEXT_SCHEDULER_ID.fetch_add(1, atomic::Ordering::SeqCst),
@@ -43,6 +44,7 @@ impl Scheduler {
             run_queue: VecDeque::new(),
             request_tx: request_tx,
             request_rx: request_rx,
+            poller_pool: poller_pool,
         }
     }
     pub fn scheduler_id(&self) -> SchedulerId {
@@ -110,8 +112,14 @@ impl Scheduler {
         let is_runnable = {
             CURRENT_CONTEXT.with(|context| {
                 let mut context = context.borrow_mut();
-                if context.scheduler_id != Some(self.scheduler_id) {
+                if context.scheduler.as_ref().map_or(true, |s| s.id != self.scheduler_id) {
                     context.switch(self);
+                }
+                {
+                    let scheduler = assert_some!(context.scheduler.as_mut());
+                    if !scheduler.poller.is_alive() {
+                        scheduler.poller = self.poller_pool.get_poller();
+                    }
                 }
                 assert!(context.fiber.is_none(), "Nested schedulers");
                 let fiber = assert_some!(self.fibers.get_mut(&fiber_id));
@@ -178,23 +186,30 @@ impl SchedulerHandle {
 }
 
 #[derive(Debug)]
+pub struct CurrentScheduler {
+    pub id: SchedulerId,
+    pub handle: SchedulerHandle,
+    pub poller: poll::PollerHandle,
+}
+
+#[derive(Debug)]
 pub struct Context {
-    scheduler_id: Option<SchedulerId>,
-    pub scheduler: SchedulerHandle,
+    pub scheduler: Option<CurrentScheduler>,
     pub fiber: Option<*mut fiber::FiberState>,
 }
 impl Context {
     pub fn new() -> Self {
-        let (tx, _) = std_mpsc::channel();
         Context {
-            scheduler_id: None,
-            scheduler: SchedulerHandle { request_tx: tx }, // dummy
+            scheduler: None,
             fiber: None,
         }
     }
     pub fn switch(&mut self, scheduler: &Scheduler) {
-        self.scheduler_id = Some(scheduler.scheduler_id);
-        self.scheduler = scheduler.handle();
+        self.scheduler = Some(CurrentScheduler {
+            id: scheduler.scheduler_id,
+            handle: scheduler.handle(),
+            poller: scheduler.poller_pool.get_poller(),
+        })
     }
     // pub fn with_current_ref<F, T>(f: F) -> T
     //     where F: FnOnce(&Context) -> T
@@ -206,7 +221,8 @@ impl Context {
     {
         CURRENT_CONTEXT.with(|context| f(&mut *context.borrow_mut()))
     }
-    pub fn fiber_mut(&mut self) -> Option<&mut fiber::FiberState> {
+    pub fn fiber_mut(&self) -> Option<&mut fiber::FiberState> {
+        // TODO: &mut self
         self.fiber.map(|fiber| unsafe { &mut *fiber })
     }
 }

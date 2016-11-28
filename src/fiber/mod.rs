@@ -64,8 +64,9 @@ impl FiberState {
 
 pub fn park() -> Option<Unpark> {
     schedule::Context::with_current_mut(|context| {
-        let scheduler = context.scheduler.clone();
-        context.fiber_mut().map(|fiber| fiber.park(scheduler))
+        context.scheduler.as_ref().and_then(|scheduler| {
+            context.fiber_mut().map(|fiber| fiber.park(scheduler.handle.clone()))
+        })
     })
 }
 
