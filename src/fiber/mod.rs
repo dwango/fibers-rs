@@ -1,4 +1,6 @@
 use std::fmt;
+use std::sync::Arc;
+use std::sync::atomic::{self, AtomicUsize};
 use futures::{Async, Future, BoxFuture};
 
 pub use self::schedule::Scheduler;
@@ -9,7 +11,7 @@ pub type FiberId = usize;
 
 pub type FiberFuture = BoxFuture<(), ()>;
 
-struct Task(FiberFuture);
+pub struct Task(FiberFuture);
 impl fmt::Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Task(_)")
@@ -18,24 +20,28 @@ impl fmt::Debug for Task {
 
 #[derive(Debug)]
 pub struct FiberState {
+    pub fiber_id: FiberId,
     task: Task,
     parks: usize,
-    unparks: usize,
+    unparks: Arc<AtomicUsize>,
     pub in_run_queue: bool,
 }
 impl FiberState {
-    pub fn new(task: FiberFuture) -> Self {
+    pub fn new(fiber_id: FiberId, task: Task) -> Self {
         FiberState {
-            task: Task(task),
+            fiber_id: fiber_id,
+            task: task,
             parks: 0,
-            unparks: 0,
+            unparks: Arc::new(AtomicUsize::new(0)),
             in_run_queue: false,
         }
     }
     pub fn run_once(&mut self) -> bool {
-        if self.unparks > 0 {
-            self.parks -= 1;
-            self.unparks -= 1;
+        if self.parks > 0 {
+            if self.unparks.load(atomic::Ordering::SeqCst) > 0 {
+                self.parks -= 1;
+                self.unparks.fetch_sub(1, atomic::Ordering::SeqCst);
+            }
         }
         if let Ok(Async::NotReady) = self.task.0.poll() {
             false
@@ -44,38 +50,36 @@ impl FiberState {
         }
     }
     pub fn is_runnable(&self) -> bool {
-        self.parks == 0 || self.unparks > 0
+        self.parks == 0 || self.unparks.load(atomic::Ordering::SeqCst) > 0
     }
-    pub fn park(&mut self) {
+    pub fn park(&mut self, scheduler: schedule::SchedulerHandle) -> Unpark {
         self.parks += 1;
-    }
-    pub fn unpark(&mut self) {
-        assert!(self.unparks < self.parks);
-        self.unparks += 1;
+        Unpark {
+            fiber_id: self.fiber_id,
+            unparks: self.unparks.clone(),
+            scheduler: scheduler,
+        }
     }
 }
 
 pub fn park() -> Option<Unpark> {
-    schedule::Context::with_current_ref(|context| {
-        context.fiber_id.map(|fiber_id| context.scheduler.park(fiber_id))
+    schedule::Context::with_current_mut(|context| {
+        let scheduler = context.scheduler.clone();
+        context.fiber_mut().map(|fiber| fiber.park(scheduler))
     })
 }
 
 #[derive(Debug)]
 pub struct Unpark {
-    scheduler: schedule::SchedulerHandle,
     fiber_id: FiberId,
-}
-impl Unpark {
-    pub fn new(scheduler: schedule::SchedulerHandle, fiber_id: FiberId) -> Self {
-        Unpark {
-            scheduler: scheduler,
-            fiber_id: fiber_id,
-        }
-    }
+    unparks: Arc<AtomicUsize>,
+    scheduler: schedule::SchedulerHandle,
 }
 impl Drop for Unpark {
     fn drop(&mut self) {
-        self.scheduler.unpark(self.fiber_id);
+        let old = self.unparks.fetch_add(1, atomic::Ordering::SeqCst);
+        if old == 0 {
+            self.scheduler.wakeup(self.fiber_id);
+        }
     }
 }

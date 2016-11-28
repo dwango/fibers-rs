@@ -99,26 +99,17 @@ impl Scheduler {
     }
     fn handle_request(&mut self, request: Request) {
         match request {
-            Request::Spawn(fiber) => self.spawn_fiber(fiber),
-            Request::Park(fiber_id) => {
-                if let Some(fiber) = self.fibers.get_mut(&fiber_id) {
-                    fiber.park();
-                }
-            }
-            Request::Unpark(fiber_id) => {
-                let does_exist = self.fibers.get_mut(&fiber_id).map_or(false, |fiber| {
-                    fiber.unpark();
-                    true
-                });
-                if does_exist {
+            Request::Spawn(task) => self.spawn_fiber(task),
+            Request::WakeUp(fiber_id) => {
+                if self.fibers.contains_key(&fiber_id) {
                     self.schedule(fiber_id);
                 }
             }
         }
     }
-    fn spawn_fiber(&mut self, fiber: fiber::FiberState) {
+    fn spawn_fiber(&mut self, task: fiber::Task) {
         let fiber_id = self.next_fiber_id();
-        self.fibers.insert(fiber_id, fiber);
+        self.fibers.insert(fiber_id, fiber::FiberState::new(fiber_id, task));
         self.schedule(fiber_id);
     }
     fn run_fiber(&mut self, fiber_id: fiber::FiberId) {
@@ -129,13 +120,14 @@ impl Scheduler {
                 if context.scheduler_id != Some(self.scheduler_id) {
                     context.switch(self);
                 }
-                assert!(context.fiber_id.is_none(), "Nested schedulers");
-                context.fiber_id = Some(fiber_id);
+                assert!(context.fiber.is_none(), "Nested schedulers");
+                let fiber = assert_some!(self.fibers.get_mut(&fiber_id));
+                context.fiber = Some(fiber as _);
             });
             let fiber = assert_some!(self.fibers.get_mut(&fiber_id));
             finished = fiber.run_once();
             CURRENT_CONTEXT.with(|context| {
-                context.borrow_mut().fiber_id = None;
+                context.borrow_mut().fiber = None;
             });
             fiber.is_runnable()
         };
@@ -185,14 +177,10 @@ impl SchedulerHandle {
         self.spawn_future(futures::lazy(f).boxed())
     }
     pub fn spawn_future(&self, f: fiber::FiberFuture) {
-        let _ = self.request_tx.send(Request::Spawn(fiber::FiberState::new(f)));
+        let _ = self.request_tx.send(Request::Spawn(fiber::Task(f)));
     }
-    pub fn park(&self, fiber_id: fiber::FiberId) -> fiber::Unpark {
-        let _ = self.request_tx.send(Request::Park(fiber_id));
-        fiber::Unpark::new(self.clone(), fiber_id)
-    }
-    pub fn unpark(&self, fiber_id: fiber::FiberId) {
-        let _ = self.request_tx.send(Request::Unpark(fiber_id));
+    pub fn wakeup(&self, fiber_id: fiber::FiberId) {
+        let _ = self.request_tx.send(Request::WakeUp(fiber_id));
     }
 }
 
@@ -200,7 +188,7 @@ impl SchedulerHandle {
 pub struct Context {
     scheduler_id: Option<SchedulerId>,
     pub scheduler: SchedulerHandle,
-    pub fiber_id: Option<fiber::FiberId>,
+    pub fiber: Option<*mut fiber::FiberState>,
 }
 impl Context {
     pub fn new() -> Self {
@@ -208,23 +196,30 @@ impl Context {
         Context {
             scheduler_id: None,
             scheduler: SchedulerHandle { request_tx: tx }, // dummy
-            fiber_id: None,
+            fiber: None,
         }
     }
     pub fn switch(&mut self, scheduler: &Scheduler) {
         self.scheduler_id = Some(scheduler.scheduler_id);
         self.scheduler = scheduler.handle();
     }
-    pub fn with_current_ref<F, T>(f: F) -> T
-        where F: FnOnce(&Context) -> T
+    // pub fn with_current_ref<F, T>(f: F) -> T
+    //     where F: FnOnce(&Context) -> T
+    // {
+    //     CURRENT_CONTEXT.with(|context| f(&*context.borrow()))
+    // }
+    pub fn with_current_mut<F, T>(f: F) -> T
+        where F: FnOnce(&mut Context) -> T
     {
-        CURRENT_CONTEXT.with(|context| f(&*context.borrow()))
+        CURRENT_CONTEXT.with(|context| f(&mut *context.borrow_mut()))
+    }
+    pub fn fiber_mut(&mut self) -> Option<&mut fiber::FiberState> {
+        self.fiber.map(|fiber| unsafe { &mut *fiber })
     }
 }
 
 #[derive(Debug)]
 pub enum Request {
-    Spawn(fiber::FiberState),
-    Park(fiber::FiberId),
-    Unpark(fiber::FiberId),
+    Spawn(fiber::Task),
+    WakeUp(fiber::FiberId),
 }
