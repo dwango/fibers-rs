@@ -1,6 +1,4 @@
-use std::fmt;
-use std::error;
-use std::sync::mpsc::SendError;
+use std::sync::mpsc::{RecvError, SendError};
 use futures::{Poll, Async, Future, Stream};
 
 use sync::mpsc;
@@ -22,28 +20,12 @@ impl<T> Sender<T> {
 pub struct Receiver<T>(mpsc::Receiver<T>);
 impl<T> Future for Receiver<T> {
     type Item = T;
-    type Error = Disconnected;
+    type Error = RecvError;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match assert_ok!(self.0.poll()) {
             Async::NotReady => Ok(Async::NotReady),
-            Async::Ready(None) => Err(Disconnected),
+            Async::Ready(None) => Err(RecvError),
             Async::Ready(Some(t)) => Ok(Async::Ready(t)),
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Disconnected;
-impl error::Error for Disconnected {
-    fn description(&self) -> &str {
-        "The sender of the oneshot channel was disconnected"
-    }
-    fn cause(&self) -> Option<&error::Error> {
-        None
-    }
-}
-impl fmt::Display for Disconnected {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "The sender of the oneshot channel was disconnected")
     }
 }

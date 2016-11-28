@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use std::sync::mpsc as std_mpsc;
-use futures::{Poll, Async, Stream};
+use futures::{Poll, Async, Stream, Sink, StartSend, AsyncSink};
 
 use fiber;
 use sync::atomic::AtomicCell;
@@ -9,6 +9,19 @@ pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let notifier = Notifier::new();
     let (tx, rx) = std_mpsc::channel();
     (Sender {
+        inner: tx,
+        notifier: notifier.clone(),
+    },
+     Receiver {
+        inner: rx,
+        notifier: notifier,
+    })
+}
+
+pub fn sync_channel<T>(bound: usize) -> (SyncSender<T>, Receiver<T>) {
+    let notifier = Notifier::new();
+    let (tx, rx) = std_mpsc::sync_channel(bound);
+    (SyncSender {
         inner: tx,
         notifier: notifier.clone(),
     },
@@ -69,6 +82,42 @@ impl<T> Drop for Sender<T> {
     }
 }
 
+#[derive(Debug)]
+pub struct SyncSender<T> {
+    inner: std_mpsc::SyncSender<T>,
+    notifier: Notifier,
+}
+impl<T> Sink for SyncSender<T> {
+    type SinkItem = T;
+    type SinkError = std_mpsc::SendError<T>;
+    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+        match self.inner.try_send(item) {
+            Err(std_mpsc::TrySendError::Full(item)) => Ok(AsyncSink::NotReady(item)),
+            Err(std_mpsc::TrySendError::Disconnected(item)) => Err(std_mpsc::SendError(item)),
+            Ok(()) => {
+                self.notifier.notify();
+                Ok(AsyncSink::Ready)
+            }
+        }
+    }
+    fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
+        Ok(Async::Ready(()))
+    }
+}
+impl<T> Clone for SyncSender<T> {
+    fn clone(&self) -> Self {
+        SyncSender {
+            inner: self.inner.clone(),
+            notifier: self.notifier.clone(),
+        }
+    }
+}
+impl<T> Drop for SyncSender<T> {
+    fn drop(&mut self) {
+        self.notifier.notify();
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Notifier {
     unpark: Arc<AtomicCell<Option<fiber::Unpark>>>,
@@ -96,5 +145,3 @@ impl Notifier {
         }
     }
 }
-
-// TODO: sync_channel
