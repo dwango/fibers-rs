@@ -52,11 +52,15 @@ impl FiberState {
     pub fn is_runnable(&self) -> bool {
         self.parks == 0 || self.unparks.load(atomic::Ordering::SeqCst) > 0
     }
-    pub fn park(&mut self, scheduler: schedule::SchedulerHandle) -> Unpark {
+    pub fn park(&mut self,
+                scheduler_id: schedule::SchedulerId,
+                scheduler: schedule::SchedulerHandle)
+                -> Unpark {
         self.parks += 1;
         Unpark {
             fiber_id: self.fiber_id,
             unparks: self.unparks.clone(),
+            scheduler_id: scheduler_id,
             scheduler: scheduler,
         }
     }
@@ -65,8 +69,15 @@ impl FiberState {
 pub fn park() -> Option<Unpark> {
     schedule::Context::with_current_mut(|context| {
         context.scheduler.as_ref().and_then(|scheduler| {
-            context.fiber_mut().map(|fiber| fiber.park(scheduler.handle.clone()))
+            context.fiber_mut().map(|fiber| fiber.park(scheduler.id, scheduler.handle.clone()))
         })
+    })
+}
+pub fn context_id() -> Option<(schedule::SchedulerId, FiberId)> {
+    schedule::Context::with_current_ref(|context| {
+        context.scheduler
+            .as_ref()
+            .and_then(|scheduler| context.fiber_mut().map(|fiber| (scheduler.id, fiber.fiber_id)))
     })
 }
 
@@ -74,7 +85,13 @@ pub fn park() -> Option<Unpark> {
 pub struct Unpark {
     fiber_id: FiberId,
     unparks: Arc<AtomicUsize>,
+    scheduler_id: schedule::SchedulerId,
     scheduler: schedule::SchedulerHandle,
+}
+impl Unpark {
+    pub fn context_id(&self) -> (schedule::SchedulerId, FiberId) {
+        (self.scheduler_id, self.fiber_id)
+    }
 }
 impl Drop for Unpark {
     fn drop(&mut self) {

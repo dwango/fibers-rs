@@ -211,11 +211,11 @@ impl Context {
             poller: scheduler.poller_pool.get_poller(),
         })
     }
-    // pub fn with_current_ref<F, T>(f: F) -> T
-    //     where F: FnOnce(&Context) -> T
-    // {
-    //     CURRENT_CONTEXT.with(|context| f(&*context.borrow()))
-    // }
+    pub fn with_current_ref<F, T>(f: F) -> T
+        where F: FnOnce(&Context) -> T
+    {
+        CURRENT_CONTEXT.with(|context| f(&*context.borrow()))
+    }
     pub fn with_current_mut<F, T>(f: F) -> T
         where F: FnOnce(&mut Context) -> T
     {
