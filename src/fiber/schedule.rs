@@ -5,8 +5,6 @@ use std::cell::RefCell;
 use futures::{self, Future, IntoFuture};
 
 use fiber;
-use timer;
-use collections::RemovableHeap;
 
 lazy_static! {
     static ref NEXT_SCHEDULER_ID: atomic::AtomicUsize = {
@@ -31,11 +29,11 @@ pub struct Scheduler {
     next_fiber_id: fiber::FiberId,
     fibers: HashMap<fiber::FiberId, fiber::FiberState>,
     run_queue: VecDeque<fiber::FiberId>,
-    timeout_queue: RemovableHeap<timer::Timeout>,
     request_tx: RequestSender,
     request_rx: RequestReceiver,
 }
 impl Scheduler {
+    /// TODO: PollFactory
     pub fn new() -> Self {
         let (request_tx, request_rx) = std_mpsc::channel();
         Scheduler {
@@ -43,7 +41,6 @@ impl Scheduler {
             next_fiber_id: 0,
             fibers: HashMap::new(),
             run_queue: VecDeque::new(),
-            timeout_queue: RemovableHeap::new(),
             request_tx: request_tx,
             request_rx: request_rx,
         }
@@ -53,9 +50,6 @@ impl Scheduler {
     }
     pub fn run_queue_len(&self) -> usize {
         self.run_queue.len()
-    }
-    pub fn timeout_queue_len(&self) -> usize {
-        self.timeout_queue.len()
     }
     pub fn fiber_count(&self) -> usize {
         self.fibers.len()
@@ -74,8 +68,7 @@ impl Scheduler {
         let mut did_something = false;
 
         // Request
-        let request = if !non_blocking && self.run_queue.len() == 0 &&
-                         self.timeout_queue.len() == 0 {
+        let request = if !non_blocking && self.run_queue.len() == 0 {
             Some(assert_ok!(self.request_rx.recv()))
         } else {
             match self.request_rx.try_recv() {
