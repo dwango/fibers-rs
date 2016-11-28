@@ -1,5 +1,8 @@
 extern crate mio;
 extern crate futures;
+extern crate splay_tree;
+#[macro_use]
+extern crate lazy_static;
 
 #[cfg(test)]
 extern crate handy_io;
@@ -19,10 +22,12 @@ macro_rules! assert_ok {
 }
 
 pub mod sync;
+pub mod fiber;
+pub mod timer;
+pub mod collections;
 
 #[cfg(test)]
 mod tests {
-
     #[test]
     fn it_works() {}
 }
