@@ -16,7 +16,7 @@ lazy_static! {
 
 thread_local! {
     static CURRENT_CONTEXT: RefCell<Context> = {
-        RefCell::new(Context::new_sentinel())
+        RefCell::new(Context::new())
     };
 }
 
@@ -100,6 +100,20 @@ impl Scheduler {
     fn handle_request(&mut self, request: Request) {
         match request {
             Request::Spawn(fiber) => self.spawn_fiber(fiber),
+            Request::Park(fiber_id) => {
+                if let Some(fiber) = self.fibers.get_mut(&fiber_id) {
+                    fiber.park();
+                }
+            }
+            Request::Unpark(fiber_id) => {
+                let does_exist = self.fibers.get_mut(&fiber_id).map_or(false, |fiber| {
+                    fiber.unpark();
+                    true
+                });
+                if does_exist {
+                    self.schedule(fiber_id);
+                }
+            }
         }
     }
     fn spawn_fiber(&mut self, fiber: fiber::FiberState) {
@@ -171,29 +185,46 @@ impl SchedulerHandle {
         self.spawn_future(futures::lazy(f).boxed())
     }
     pub fn spawn_future(&self, f: fiber::FiberFuture) {
-        let request = Request::Spawn(fiber::FiberState::new(f));
-        let _ = self.request_tx.send(request);
+        let _ = self.request_tx.send(Request::Spawn(fiber::FiberState::new(f)));
+    }
+    pub fn park(&self, fiber_id: fiber::FiberId) -> fiber::Unpark {
+        let _ = self.request_tx.send(Request::Park(fiber_id));
+        fiber::Unpark::new(self.clone(), fiber_id)
+    }
+    pub fn unpark(&self, fiber_id: fiber::FiberId) {
+        let _ = self.request_tx.send(Request::Unpark(fiber_id));
     }
 }
 
 #[derive(Debug)]
 pub struct Context {
     scheduler_id: Option<SchedulerId>,
-    fiber_id: Option<fiber::FiberId>,
+    pub scheduler: SchedulerHandle,
+    pub fiber_id: Option<fiber::FiberId>,
 }
 impl Context {
-    pub fn new_sentinel() -> Self {
+    pub fn new() -> Self {
+        let (tx, _) = std_mpsc::channel();
         Context {
             scheduler_id: None,
+            scheduler: SchedulerHandle { request_tx: tx }, // dummy
             fiber_id: None,
         }
     }
     pub fn switch(&mut self, scheduler: &Scheduler) {
         self.scheduler_id = Some(scheduler.scheduler_id);
+        self.scheduler = scheduler.handle();
+    }
+    pub fn with_current_ref<F, T>(f: F) -> T
+        where F: FnOnce(&Context) -> T
+    {
+        CURRENT_CONTEXT.with(|context| f(&*context.borrow()))
     }
 }
 
 #[derive(Debug)]
 pub enum Request {
     Spawn(fiber::FiberState),
+    Park(fiber::FiberId),
+    Unpark(fiber::FiberId),
 }
