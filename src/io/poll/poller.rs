@@ -4,9 +4,12 @@ use std::fmt;
 use std::time;
 use std::collections::HashMap;
 use std::sync::mpsc as std_mpsc;
+use std::sync::Arc;
+use std::sync::atomic::{self, AtomicUsize};
+use futures::{self, Future};
 use mio;
 
-use fiber;
+use sync::oneshot;
 use collections::RemovableHeap;
 
 pub type RequestSender = std_mpsc::Sender<Request>;
@@ -22,7 +25,34 @@ impl fmt::Debug for MioEvents {
 }
 
 #[derive(Debug)]
-pub struct Registrant;
+pub struct Registrant {
+    is_first: bool,
+    evented: BoxEvented,
+    read_waitings: Vec<oneshot::Sender<()>>,
+    write_waitings: Vec<oneshot::Sender<()>>,
+}
+impl Registrant {
+    pub fn new(evented: BoxEvented) -> Self {
+        Registrant {
+            is_first: false,
+            evented: evented,
+            read_waitings: Vec::new(),
+            write_waitings: Vec::new(),
+        }
+    }
+    pub fn mio_interest(&self) -> mio::Ready {
+        (if self.read_waitings.is_empty() {
+            mio::Ready::none()
+        } else {
+            mio::Ready::readable()
+        }) |
+        (if self.write_waitings.is_empty() {
+            mio::Ready::none()
+        } else {
+            mio::Ready::writable()
+        })
+    }
+}
 
 #[derive(Debug)]
 pub struct Poller {
@@ -77,23 +107,77 @@ impl Poller {
         // TODO
 
         // I/O event
-        let timeout = if !did_something && self.timeout_queue.len() == 0 {
-            // TODO: min(timeout, timeout_queue.front())
+        let timeout = if did_something {
+            Some(time::Duration::from_millis(0))
+        } else if self.timeout_queue.len() > 0 {
+            // TODO: min(timeout, timeout_queue.front() - now())
             timeout
         } else {
-            Some(time::Duration::from_millis(0))
+            timeout
         };
         let _ = self.poll.poll(&mut self.events.0, timeout)?;
-        for _e in self.events.0.iter() {
+        for e in self.events.0.iter() {
+            let r = assert_some!(self.registrants.get_mut(&e.token()));
+            if e.kind().is_readable() {
+                for _ in r.read_waitings.drain(..).map(|tx| tx.send(())) {}
+            }
+            if e.kind().is_writable() {
+                for _ in r.write_waitings.drain(..).map(|tx| tx.send(())) {}
+            }
+            Self::mio_register(&self.poll, e.token(), r)?;
         }
 
         Ok(())
     }
     fn handle_request(&mut self, request: Request) -> io::Result<()> {
         match request {
+            Request::Register(evented, reply) => {
+                let token = self.next_token();
+                self.registrants.insert(token, Registrant::new(evented));
+                let _ = reply.send(EventedHandle::new(self.request_tx.clone(), token));
+            }
+            Request::Deregister(token) => {
+                let r = assert_some!(self.registrants.remove(&token));
+                if !r.is_first {
+                    self.poll.deregister(&*r.evented.0)?;
+                }
+            }
+            Request::Monitor(token, interest, notifier) => {
+                let r = assert_some!(self.registrants.get_mut(&token));
+                match interest {
+                    Interest::Read => r.read_waitings.push(notifier),
+                    Interest::Write => r.write_waitings.push(notifier),
+                }
+                if r.read_waitings.len() == 1 || r.write_waitings.len() == 1 {
+                    Self::mio_register(&self.poll, token, r)?;
+                }
+            }
             _ => unimplemented!(),
         }
         Ok(())
+    }
+    fn mio_register(poll: &mio::Poll, token: mio::Token, r: &mut Registrant) -> io::Result<()> {
+        let interest = r.mio_interest();
+        if interest != mio::Ready::none() {
+            let options = mio::PollOpt::edge() | mio::PollOpt::oneshot();
+            if r.is_first {
+                r.is_first = false;
+                poll.register(&*r.evented.0, token, interest, options)?;
+            } else {
+                poll.reregister(&*r.evented.0, token, interest, options)?;
+            }
+        }
+        Ok(())
+    }
+    fn next_token(&mut self) -> mio::Token {
+        loop {
+            let token = self.next_token;
+            self.next_token = token.wrapping_add(1);
+            if self.registrants.contains_key(&mio::Token(token)) {
+                continue;
+            }
+            return mio::Token(token);
+        }
     }
 }
 
@@ -105,6 +189,78 @@ pub struct PollerHandle {
 impl PollerHandle {
     pub fn is_alive(&self) -> bool {
         self.is_alive
+    }
+    // TODO: name
+    pub fn register<E>(&mut self, evented: E) -> Register
+        where E: mio::Evented + Send + 'static
+    {
+        let evented = BoxEvented(Box::new(evented));
+        let (tx, rx) = oneshot::channel();
+        if self.request_tx.send(Request::Register(evented, tx)).is_err() {
+            self.is_alive = false;
+        }
+        Register { rx: rx }
+    }
+}
+
+#[derive(Debug)]
+pub struct Register {
+    rx: oneshot::Receiver<EventedHandle>,
+}
+impl Future for Register {
+    type Item = EventedHandle;
+    type Error = std_mpsc::RecvError;
+    fn poll(&mut self) -> futures::Poll<Self::Item, Self::Error> {
+        self.rx.poll()
+    }
+}
+
+// TODO: name
+#[derive(Debug)]
+pub struct EventedHandle {
+    token: mio::Token,
+    request_tx: RequestSender,
+    shared_count: Arc<AtomicUsize>,
+}
+impl EventedHandle {
+    pub fn new(request_tx: RequestSender, token: mio::Token) -> Self {
+        EventedHandle {
+            token: token,
+            request_tx: request_tx,
+            shared_count: Arc::new(AtomicUsize::new(1)),
+        }
+    }
+    pub fn monitor(&self, interest: Interest) -> Monitor {
+        let (tx, rx) = oneshot::channel();
+        let _ = self.request_tx.send(Request::Monitor(self.token, interest, tx));
+        Monitor(rx)
+    }
+}
+impl Clone for EventedHandle {
+    fn clone(&self) -> Self {
+        self.shared_count.fetch_add(1, atomic::Ordering::SeqCst);
+        EventedHandle {
+            token: self.token.clone(),
+            request_tx: self.request_tx.clone(),
+            shared_count: self.shared_count.clone(),
+        }
+    }
+}
+impl Drop for EventedHandle {
+    fn drop(&mut self) {
+        if 1 == self.shared_count.fetch_sub(1, atomic::Ordering::SeqCst) {
+            let _ = self.request_tx.send(Request::Deregister(self.token));
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Monitor(oneshot::Receiver<()>);
+impl Future for Monitor {
+    type Item = ();
+    type Error = std_mpsc::RecvError;
+    fn poll(&mut self) -> futures::Poll<Self::Item, Self::Error> {
+        self.0.poll()
     }
 }
 
@@ -123,9 +279,9 @@ impl fmt::Debug for BoxEvented {
 
 #[derive(Debug)]
 pub enum Request {
-    Register(mio::Token, BoxEvented),
+    Register(BoxEvented, oneshot::Sender<EventedHandle>),
     Deregister(mio::Token),
-    Monitor(mio::Token, Interest, fiber::Unpark),
+    Monitor(mio::Token, Interest, oneshot::Sender<()>),
     SetTimeout,
     CancelTimeout,
 }
