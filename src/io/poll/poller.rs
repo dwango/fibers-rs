@@ -330,10 +330,18 @@ impl Future for Monitor {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Interest {
     Read,
     Write,
+}
+impl Interest {
+    pub fn is_read(&self) -> bool {
+        *self == Interest::Read
+    }
+    pub fn is_write(&self) -> bool {
+        *self == Interest::Write
+    }
 }
 
 pub struct BoxEvented(Box<mio::Evented + Send + 'static>);

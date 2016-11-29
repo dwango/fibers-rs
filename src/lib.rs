@@ -22,6 +22,7 @@ macro_rules! assert_ok {
 }
 
 pub mod io;
+pub mod net;
 pub mod sync;
 pub mod fiber;
 pub mod timer;
