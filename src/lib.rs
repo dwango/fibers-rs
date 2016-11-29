@@ -1,4 +1,5 @@
 extern crate mio;
+extern crate rand;
 extern crate futures;
 extern crate splay_tree;
 extern crate num_cpus;

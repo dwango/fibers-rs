@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 mio = "0.6"
+rand = "0.3"
 futures = "0.1"
 lazy_static = "0.1"
 splay_tree = "0.2"

@@ -118,7 +118,7 @@ impl Scheduler {
                 {
                     let scheduler = assert_some!(context.scheduler.as_mut());
                     if !scheduler.poller.is_alive() {
-                        scheduler.poller = self.poller_pool.get_poller();
+                        scheduler.poller = self.poller_pool.allocate_poller();
                     }
                 }
                 assert!(context.fiber.is_none(), "Nested schedulers");
@@ -208,7 +208,7 @@ impl Context {
         self.scheduler = Some(CurrentScheduler {
             id: scheduler.scheduler_id,
             handle: scheduler.handle(),
-            poller: scheduler.poller_pool.get_poller(),
+            poller: scheduler.poller_pool.allocate_poller(),
         })
     }
     pub fn with_current_ref<F, T>(f: F) -> T
