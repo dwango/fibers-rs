@@ -16,15 +16,8 @@ pub struct UdpSocket {
     handle: EventedHandle,
 }
 impl UdpSocket {
-    pub fn bind(addr: &SocketAddr) -> UdpBind {
-        mio::udp::UdpSocket::bind(addr)
-            .map(|socket| {
-                let socket = SharableEvented::new(socket);
-                let register =
-                    assert_some!(fiber::with_poller(|poller| poller.register(socket.clone())));
-                UdpBind::Registering(socket, register)
-            })
-            .unwrap_or_else(UdpBind::Error)
+    pub fn bind(addr: SocketAddr) -> UdpBind {
+        UdpBind::Bind(addr)
     }
     pub fn send_to<B>(self, buf: B, target: &SocketAddr) -> SendTo<B>
         where B: AsRef<[u8]>
@@ -157,8 +150,8 @@ impl<B> Future for RecvFrom<B>
 // TODO: name
 #[derive(Debug)]
 pub enum UdpBind {
+    Bind(SocketAddr),
     Registering(SharableEvented<mio::udp::UdpSocket>, poll::Register),
-    Error(io::Error),
     Polled,
 }
 impl Future for UdpBind {
@@ -166,6 +159,14 @@ impl Future for UdpBind {
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match mem::replace(self, UdpBind::Polled) {
+            UdpBind::Bind(addr) => {
+                let socket = mio::udp::UdpSocket::bind(&addr)?;
+                let socket = SharableEvented::new(socket);
+                let register =
+                    assert_some!(fiber::with_poller(|poller| poller.register(socket.clone())));
+                *self = UdpBind::Registering(socket, register);
+                self.poll()
+            }
             UdpBind::Registering(socket, mut future) => {
                 if let Async::Ready(handle) = future.poll().map_err(into_io_error)? {
                     Ok(Async::Ready(UdpSocket::new(socket, handle)))
@@ -174,7 +175,6 @@ impl Future for UdpBind {
                     Ok(Async::NotReady)
                 }
             }
-            UdpBind::Error(e) => Err(e),
             UdpBind::Polled => panic!("Cannot poll UdpBind twice"),
         }
     }

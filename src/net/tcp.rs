@@ -20,8 +20,8 @@ pub struct TcpListener {
 }
 impl TcpListener {
     // TODO: doc for panic condition
-    pub fn bind(addr: &SocketAddr) -> Bind {
-        Bind::Bind(addr.clone())
+    pub fn bind(addr: SocketAddr) -> Bind {
+        Bind::Bind(addr)
     }
     pub fn incoming(self) -> Incoming {
         Incoming(self)
@@ -167,8 +167,8 @@ impl TcpStream {
     }
 
     // TODO: doc for panic condition
-    pub fn connect(addr: &SocketAddr) -> Connect {
-        Connect::Connect(addr.clone())
+    pub fn connect(addr: SocketAddr) -> Connect {
+        Connect::Connect(addr)
     }
     pub fn split(mut self) -> (ReadHalf<Self>, WriteHalf<Self>) {
         let read_half = ReadHalf(TcpStream {

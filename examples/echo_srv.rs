@@ -23,7 +23,7 @@ fn main() {
 
     let executor = Executor::new().expect("Cannot create Executor");
     let handle0 = executor.handle();
-    executor.spawn(fibers::net::TcpListener::bind(&addr)
+    executor.spawn(fibers::net::TcpListener::bind(addr)
         .and_then(move |listener| {
             println!("# Start listening: {}: ", addr);
             listener.incoming().for_each(move |(client, addr)| {
@@ -53,10 +53,6 @@ fn main() {
                                 println!("# RECV: {} bytes", buf.len());
                                 tx.send(buf).expect("Cannot send");
                                 Ok(tx) as io::Result<_>
-                            })
-                            .then(|r| {
-                                println!("# Reader finished: {:?}", r);
-                                Ok(())
                             })
                     })
                     .then(|r| {
