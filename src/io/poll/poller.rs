@@ -10,7 +10,7 @@ use futures::{self, Future};
 use mio;
 
 use sync::oneshot;
-use collections::RemovableHeap;
+use collections::HeapMap;
 
 pub type RequestSender = std_mpsc::Sender<Request>;
 pub type RequestReceiver = std_mpsc::Receiver<Request>;
@@ -61,8 +61,9 @@ pub struct Poller {
     request_tx: RequestSender,
     request_rx: RequestReceiver,
     next_token: usize,
+    next_timeout_id: Arc<AtomicUsize>,
     registrants: HashMap<mio::Token, Registrant>,
-    timeout_queue: RemovableHeap<()>,
+    timeout_queue: HeapMap<(time::Instant, usize), oneshot::Sender<()>>,
 }
 impl Poller {
     pub fn new() -> io::Result<Self> {
@@ -77,8 +78,9 @@ impl Poller {
             request_tx: tx,
             request_rx: rx,
             next_token: 0,
+            next_timeout_id: Arc::new(AtomicUsize::new(0)),
             registrants: HashMap::new(),
-            timeout_queue: RemovableHeap::new(),
+            timeout_queue: HeapMap::new(),
         })
     }
     pub fn registrant_count(&self) -> usize {
@@ -87,6 +89,7 @@ impl Poller {
     pub fn handle(&self) -> PollerHandle {
         PollerHandle {
             request_tx: self.request_tx.clone(),
+            next_timeout_id: self.next_timeout_id.clone(),
             is_alive: true,
         }
     }
@@ -104,14 +107,22 @@ impl Poller {
         }
 
         // Timeout
-        // TODO
+        let now = time::Instant::now();
+        while let Some((_, notifier)) = self.timeout_queue.pop_if(|k, _| k.0 <= now) {
+            let _ = notifier.send(());
+        }
 
         // I/O event
         let timeout = if did_something {
             Some(time::Duration::from_millis(0))
-        } else if self.timeout_queue.len() > 0 {
-            // TODO: min(timeout, timeout_queue.front() - now())
-            timeout
+        } else if let Some((k, _)) = self.timeout_queue.peek() {
+            let duration_until_next_expiry_time = k.0 - now;
+            if let Some(timeout) = timeout {
+                use std::cmp;
+                Some(cmp::min(timeout, duration_until_next_expiry_time))
+            } else {
+                Some(duration_until_next_expiry_time)
+            }
         } else {
             timeout
         };
@@ -152,7 +163,12 @@ impl Poller {
                     Self::mio_register(&self.poll, token, r)?;
                 }
             }
-            _ => unimplemented!(),
+            Request::SetTimeout(timeout_id, expiry_time, reply) => {
+                assert!(self.timeout_queue.push_if_absent((expiry_time, timeout_id), reply));
+            }
+            Request::CancelTimeout(timeout_id, expiry_time) => {
+                self.timeout_queue.remove(&(expiry_time, timeout_id));
+            }
         }
         Ok(())
     }
@@ -184,13 +200,13 @@ impl Poller {
 #[derive(Debug, Clone)]
 pub struct PollerHandle {
     request_tx: RequestSender,
+    next_timeout_id: Arc<AtomicUsize>,
     is_alive: bool,
 }
 impl PollerHandle {
     pub fn is_alive(&self) -> bool {
         self.is_alive
     }
-    // TODO: name
     pub fn register<E>(&mut self, evented: E) -> Register
         where E: mio::Evented + Send + 'static
     {
@@ -200,6 +216,57 @@ impl PollerHandle {
             self.is_alive = false;
         }
         Register { rx: rx }
+    }
+    pub fn set_timeout(&mut self, delay_from_now: time::Duration) -> Timeout {
+        let (tx, rx) = oneshot::channel();
+        let expiry_time = time::Instant::now() + delay_from_now;
+        let timeout_id = self.next_timeout_id.fetch_add(1, atomic::Ordering::SeqCst);
+        let request = Request::SetTimeout(timeout_id, expiry_time.clone(), tx);
+        let _ = self.request_tx.send(request);
+        Timeout {
+            cancel: Some(CancelTimeout {
+                timeout_id: timeout_id,
+                expiry_time: expiry_time,
+                request_tx: self.request_tx.clone(),
+            }),
+            rx: rx,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct CancelTimeout {
+    timeout_id: usize,
+    expiry_time: time::Instant,
+    request_tx: RequestSender,
+}
+impl CancelTimeout {
+    pub fn cancel(self) {
+        let _ = self.request_tx.send(Request::CancelTimeout(self.timeout_id, self.expiry_time));
+    }
+}
+
+#[derive(Debug)]
+pub struct Timeout {
+    cancel: Option<CancelTimeout>,
+    rx: oneshot::Receiver<()>,
+}
+impl Future for Timeout {
+    type Item = ();
+    type Error = std_mpsc::RecvError;
+    fn poll(&mut self) -> futures::Poll<Self::Item, Self::Error> {
+        let result = self.rx.poll();
+        if result != Ok(futures::Async::NotReady) {
+            self.cancel = None;
+        }
+        result
+    }
+}
+impl Drop for Timeout {
+    fn drop(&mut self) {
+        if let Some(cancel) = self.cancel.take() {
+            cancel.cancel();
+        }
     }
 }
 
@@ -215,7 +282,6 @@ impl Future for Register {
     }
 }
 
-// TODO: name
 #[derive(Debug)]
 pub struct EventedHandle {
     token: mio::Token,
@@ -282,6 +348,6 @@ pub enum Request {
     Register(BoxEvented, oneshot::Sender<EventedHandle>),
     Deregister(mio::Token),
     Monitor(mio::Token, Interest, oneshot::Sender<()>),
-    SetTimeout,
-    CancelTimeout,
+    SetTimeout(usize, time::Instant, oneshot::Sender<()>),
+    CancelTimeout(usize, time::Instant),
 }

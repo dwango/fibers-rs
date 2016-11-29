@@ -5,6 +5,8 @@ use futures::{Async, Future, BoxFuture};
 
 pub use self::schedule::Scheduler;
 
+use io::poll;
+
 mod schedule;
 
 pub type FiberId = usize;
@@ -78,6 +80,13 @@ pub fn context_id() -> Option<(schedule::SchedulerId, FiberId)> {
         context.scheduler
             .as_ref()
             .and_then(|scheduler| context.fiber_mut().map(|fiber| (scheduler.id, fiber.fiber_id)))
+    })
+}
+pub fn with_poller<F, T>(f: F) -> Option<T>
+    where F: FnOnce(&mut poll::PollerHandle) -> T
+{
+    schedule::Context::with_current_mut(|context| {
+        context.scheduler.as_mut().map(|s| f(&mut s.poller))
     })
 }
 

@@ -1,37 +1,40 @@
-use splay_tree::SplaySet;
+use splay_tree::SplayMap;
 
 #[derive(Debug)]
-pub struct RemovableHeap<T> {
-    inner: SplaySet<T>,
+pub struct HeapMap<K, V> {
+    inner: SplayMap<K, V>,
 }
-impl<T> RemovableHeap<T>
-    where T: Ord
+impl<K, V> HeapMap<K, V>
+    where K: Ord
 {
     pub fn new() -> Self {
-        RemovableHeap { inner: SplaySet::new() }
+        HeapMap { inner: SplayMap::new() }
     }
-    pub fn push_if_absent(&mut self, item: T) -> bool {
-        if !self.inner.contains(&item) {
-            self.inner.insert(item);
+    pub fn push_if_absent(&mut self, key: K, value: V) -> bool {
+        if !self.inner.contains_key(&key) {
+            self.inner.insert(key, value);
             true
         } else {
             false
         }
     }
-    pub fn pop_if<F>(&mut self, f: F) -> Option<T>
-        where F: FnOnce(&T) -> bool
+    pub fn pop_if<F>(&mut self, f: F) -> Option<(K, V)>
+        where F: FnOnce(&K, &V) -> bool
     {
-        if self.inner.smallest().map_or(false, |item| f(item)) {
+        if self.inner.smallest().map_or(false, |(k, v)| f(k, v)) {
             self.inner.take_smallest()
         } else {
             None
         }
     }
-    pub fn remove(&mut self, item: &T) -> bool {
-        self.inner.remove(item)
+    pub fn peek(&mut self) -> Option<(&K, &V)> {
+        self.inner.smallest()
+    }
+    pub fn remove(&mut self, key: &K) -> bool {
+        self.inner.remove(key).is_some()
     }
 }
-impl<T> RemovableHeap<T> {
+impl<K, V> HeapMap<K, V> {
     pub fn len(&self) -> usize {
         self.inner.len()
     }
