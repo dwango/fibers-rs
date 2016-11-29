@@ -53,6 +53,7 @@ impl Builder {
 
         let (tx, rx) = std_mpsc::channel();
         Ok(Executor {
+            poller_pool: poller_pool,
             links: links,
             schedulers: schedulers,
             request_tx: tx,
@@ -72,6 +73,7 @@ type RequestReceiver = std_mpsc::Receiver<Request>;
 #[derive(Debug)]
 pub struct Executor {
     links: Vec<Link<io::Error>>,
+    poller_pool: poll::PollerPool,
     schedulers: Vec<SchedulerHandle>,
     request_tx: RequestSender,
     request_rx: RequestReceiver,
@@ -80,18 +82,26 @@ impl Executor {
     pub fn new() -> io::Result<Self> {
         Builder::new().build()
     }
+    pub fn io_poller_thread_count(&self) -> usize {
+        self.poller_pool.thread_count()
+    }
     pub fn scheduler_thread_count(&self) -> usize {
         self.schedulers.len()
     }
     pub fn handle(&self) -> ExecutorHandle {
         ExecutorHandle { request_tx: self.request_tx.clone() }
     }
-    pub fn spawn<F, T>(&self, f: F)
+    pub fn spawn<F>(&self, future: F)
+        where F: Future<Item = (), Error = ()> + Send + 'static
+    {
+        self.handle().spawn(future);
+    }
+    pub fn spawn_fn<F, T>(&self, f: F)
         where F: FnOnce() -> T + Send + 'static,
               T: IntoFuture<Item = (), Error = ()> + Send + 'static,
               T::Future: Send
     {
-        self.handle().spawn(f);
+        self.handle().spawn_fn(f);
     }
     pub fn run(mut self) -> io::Result<()> {
         loop {
@@ -130,7 +140,13 @@ pub struct ExecutorHandle {
     request_tx: RequestSender,
 }
 impl ExecutorHandle {
-    pub fn spawn<F, T>(&self, f: F)
+    pub fn spawn<F>(&self, future: F)
+        where F: Future<Item = (), Error = ()> + Send + 'static
+    {
+        let request = Request::Spawn(fiber::Task(future.boxed()));
+        let _ = self.request_tx.send(request);
+    }
+    pub fn spawn_fn<F, T>(&self, f: F)
         where F: FnOnce() -> T + Send + 'static,
               T: IntoFuture<Item = (), Error = ()> + Send + 'static,
               T::Future: Send

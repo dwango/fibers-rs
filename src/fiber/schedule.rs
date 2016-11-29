@@ -144,7 +144,7 @@ impl Scheduler {
     }
     fn schedule(&mut self, fiber_id: fiber::FiberId) {
         let fiber = assert_some!(self.fibers.get_mut(&fiber_id));
-        if fiber.in_run_queue {
+        if !fiber.in_run_queue {
             self.run_queue.push_back(fiber_id);
             fiber.in_run_queue = true;
         }

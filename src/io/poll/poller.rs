@@ -34,7 +34,7 @@ pub struct Registrant {
 impl Registrant {
     pub fn new(evented: BoxEvented) -> Self {
         Registrant {
-            is_first: false,
+            is_first: true,
             evented: evented,
             read_waitings: Vec::new(),
             write_waitings: Vec::new(),

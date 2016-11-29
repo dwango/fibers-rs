@@ -28,10 +28,12 @@ impl PollerPool {
             let mut poller = poll::Poller::new()?;
             links.push(link0);
             pollers.push(poller.handle());
-            thread::spawn(move || while let Ok(Async::NotReady) = link1.poll() {
-                if let Err(e) = poller.poll(Some(time::Duration::from_millis(100))) {
-                    link1.fail(e);
-                    return;
+            thread::spawn(move || {
+                while let Ok(Async::NotReady) = link1.poll().map_err(|e| e) {
+                    if let Err(e) = poller.poll(Some(time::Duration::from_millis(100))) {
+                        link1.fail(e);
+                        return;
+                    }
                 }
             });
         }

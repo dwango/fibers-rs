@@ -21,20 +21,48 @@ pub struct TcpListener {
 impl TcpListener {
     // TODO: doc for panic condition
     pub fn bind(addr: &SocketAddr) -> Bind {
-        mio::tcp::TcpListener::bind(addr)
-            .map(|listener| {
-                let listener = SharableEvented::new(listener);
-                let register =
-                    assert_some!(fiber::with_poller(|poller| poller.register(listener.clone())));
-                Bind::Registering(listener, register)
-            })
-            .unwrap_or_else(Bind::Error)
+        Bind::Bind(addr.clone())
+    }
+    pub fn incoming(self) -> Incoming {
+        Incoming(self)
     }
     fn new(inner: SharableEvented<mio::tcp::TcpListener>, handle: EventedHandle) -> Self {
         TcpListener {
             inner: inner,
             handle: handle,
             monitor: None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Bind {
+    Bind(SocketAddr),
+    Registering(SharableEvented<mio::tcp::TcpListener>, poll::Register),
+    Polled,
+}
+impl Future for Bind {
+    type Item = TcpListener;
+    type Error = io::Error;
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match mem::replace(self, Bind::Polled) {
+            Bind::Bind(addr) => {
+                let listener = mio::tcp::TcpListener::bind(&addr)?;
+                let listener = SharableEvented::new(listener);
+                let register =
+                    assert_some!(fiber::with_poller(|poller| poller.register(listener.clone())));
+                *self = Bind::Registering(listener, register);
+                self.poll()
+            }
+            Bind::Registering(listener, mut future) => {
+                if let Async::Ready(handle) = future.poll().map_err(into_io_error)? {
+                    Ok(Async::Ready(TcpListener::new(listener, handle)))
+                } else {
+                    *self = Bind::Registering(listener, future);
+                    Ok(Async::NotReady)
+                }
+            }
+            Bind::Polled => panic!("Cannot poll Bind twice"),
         }
     }
 }
@@ -75,35 +103,10 @@ impl Stream for Incoming {
 }
 
 #[derive(Debug)]
-pub enum Bind {
-    Registering(SharableEvented<mio::tcp::TcpListener>, poll::Register),
-    Error(io::Error),
-    Polled,
-}
-impl Future for Bind {
-    type Item = TcpListener;
-    type Error = io::Error;
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match mem::replace(self, Bind::Polled) {
-            Bind::Registering(listener, mut future) => {
-                if let Async::Ready(handle) = future.poll().map_err(into_io_error)? {
-                    Ok(Async::Ready(TcpListener::new(listener, handle)))
-                } else {
-                    *self = Bind::Registering(listener, future);
-                    Ok(Async::NotReady)
-                }
-            }
-            Bind::Error(e) => Err(e),
-            Bind::Polled => panic!("Cannot poll Bind twice"),
-        }
-    }
-}
-
-#[derive(Debug)]
 pub enum Connect {
+    Connect(SocketAddr),
     Registering(SharableEvented<mio::tcp::TcpStream>, poll::Register),
     Connecting(TcpStream),
-    Error(io::Error),
     Polled,
 }
 impl Future for Connect {
@@ -111,6 +114,14 @@ impl Future for Connect {
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match mem::replace(self, Connect::Polled) {
+            Connect::Connect(addr) => {
+                let stream = mio::tcp::TcpStream::connect(&addr)?;
+                let stream = SharableEvented::new(stream);
+                let register =
+                    assert_some!(fiber::with_poller(|poller| poller.register(stream.clone())));
+                *self = Connect::Registering(stream, register);
+                self.poll()
+            }
             Connect::Registering(stream, mut future) => {
                 if let Async::Ready(handle) = future.poll().map_err(into_io_error)? {
                     *self = Connect::Connecting(TcpStream::new(stream, handle));
@@ -133,7 +144,6 @@ impl Future for Connect {
                     }
                 }
             }
-            Connect::Error(e) => Err(e),
             Connect::Polled => panic!("Cannot poll Connect twice"),
         }
     }
@@ -158,14 +168,7 @@ impl TcpStream {
 
     // TODO: doc for panic condition
     pub fn connect(addr: &SocketAddr) -> Connect {
-        mio::tcp::TcpStream::connect(addr)
-            .map(|stream| {
-                let stream = SharableEvented::new(stream);
-                let register =
-                    assert_some!(fiber::with_poller(|poller| poller.register(stream.clone())));
-                Connect::Registering(stream, register)
-            })
-            .unwrap_or_else(Connect::Error)
+        Connect::Connect(addr.clone())
     }
     pub fn split(mut self) -> (ReadHalf<Self>, WriteHalf<Self>) {
         let read_half = ReadHalf(TcpStream {
