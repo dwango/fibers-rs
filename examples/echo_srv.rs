@@ -14,7 +14,6 @@ fn main() {
     let matches = App::new("echo_srv")
         .arg(Arg::with_name("PORT")
             .short("p")
-            .long("port")
             .takes_value(true)
             .default_value("3000"))
         .get_matches();

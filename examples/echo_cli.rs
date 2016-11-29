@@ -14,12 +14,10 @@ fn main() {
     let matches = App::new("echo_cli")
         .arg(Arg::with_name("SERVER_HOST")
             .short("h")
-            .long("server_host")
             .takes_value(true)
             .default_value("127.0.0.1"))
         .arg(Arg::with_name("SERVER_PORT")
             .short("p")
-            .long("server_port")
             .takes_value(true)
             .default_value("3000"))
         .get_matches();
@@ -27,6 +25,7 @@ fn main() {
     let port = matches.value_of("SERVER_PORT").unwrap();
     let addr = format!("{}:{}", host, port).parse().expect("Invalid TCP address");
 
+    // TODO: s/Executor/System/ (?)
     let mut executor = Executor::new().expect("Cannot create Executor");
     let (stdin_tx, stdin_rx) = fibers::sync::mpsc::channel();
     let handle = executor.handle();
