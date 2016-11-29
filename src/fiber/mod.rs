@@ -3,10 +3,12 @@ use std::sync::Arc;
 use std::sync::atomic::{self, AtomicUsize};
 use futures::{Async, Future, BoxFuture};
 
-pub use self::schedule::Scheduler;
+pub use self::execute::{Executor, ExecutorHandle, Builder};
+pub use self::schedule::{Scheduler, SchedulerHandle};
 
 use io::poll;
 
+mod execute;
 mod schedule;
 
 pub type FiberId = usize;

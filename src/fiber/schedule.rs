@@ -66,22 +66,17 @@ impl Scheduler {
     {
         self.handle().spawn(f);
     }
-    pub fn run_once(&mut self, non_blocking: bool) -> bool {
+    pub fn run_once(&mut self) -> bool {
         let mut did_something = false;
 
         // Request
-        let request = if !non_blocking && self.run_queue.len() == 0 {
-            Some(assert_ok!(self.request_rx.recv()))
-        } else {
-            match self.request_rx.try_recv() {
-                Err(std_mpsc::TryRecvError::Empty) => None,
-                Err(std_mpsc::TryRecvError::Disconnected) => unreachable!(),
-                Ok(r) => Some(r),
+        match self.request_rx.try_recv() {
+            Err(std_mpsc::TryRecvError::Empty) => {}
+            Err(std_mpsc::TryRecvError::Disconnected) => unreachable!(),
+            Ok(request) => {
+                did_something = true;
+                self.handle_request(request);
             }
-        };
-        if let Some(request) = request {
-            did_something = true;
-            self.handle_request(request);
         }
 
         // Task
