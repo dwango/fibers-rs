@@ -9,13 +9,14 @@ use fiber;
 use io::poll;
 use io::poll::EventedHandle;
 use io::poll::SharableEvented;
+use sync::oneshot::Monitor;
 use super::{ReadHalf, WriteHalf};
 
 #[derive(Debug)]
 pub struct TcpListener {
     inner: SharableEvented<mio::tcp::TcpListener>,
     handle: EventedHandle,
-    monitor: Option<poll::Monitor>,
+    monitor: Option<Monitor<io::Error>>,
 }
 impl TcpListener {
     // TODO: doc for panic condition
@@ -141,8 +142,8 @@ impl Future for Connect {
 pub struct TcpStream {
     inner: SharableEvented<mio::tcp::TcpStream>,
     handle: EventedHandle,
-    read_monitor: Option<poll::Monitor>,
-    write_monitor: Option<poll::Monitor>,
+    read_monitor: Option<Monitor<io::Error>>,
+    write_monitor: Option<Monitor<io::Error>>,
 }
 impl TcpStream {
     // TODO: implements other tcp related functions
@@ -176,7 +177,7 @@ impl TcpStream {
         let write_half = WriteHalf(self);
         (read_half, write_half)
     }
-    fn monitor(&mut self, interest: poll::Interest) -> &mut Option<poll::Monitor> {
+    fn monitor(&mut self, interest: poll::Interest) -> &mut Option<Monitor<io::Error>> {
         if interest.is_read() {
             &mut self.read_monitor
         } else {

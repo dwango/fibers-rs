@@ -8,6 +8,7 @@ use mio;
 use fiber;
 use io::poll;
 use io::poll::{SharableEvented, EventedHandle};
+use sync::oneshot::Monitor;
 
 #[derive(Debug)]
 pub struct UdpSocket {
@@ -57,7 +58,7 @@ struct SendToInner<B> {
     socket: UdpSocket,
     buf: B,
     target: SocketAddr,
-    monitor: Option<poll::Monitor>,
+    monitor: Option<Monitor<io::Error>>,
 }
 
 #[derive(Debug)]
@@ -105,7 +106,7 @@ impl<B> Future for SendTo<B>
 struct RecvFromInner<B> {
     socket: UdpSocket,
     buf: B,
-    monitor: Option<poll::Monitor>,
+    monitor: Option<Monitor<io::Error>>,
 }
 
 #[derive(Debug)]

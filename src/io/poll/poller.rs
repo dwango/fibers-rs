@@ -28,8 +28,8 @@ impl fmt::Debug for MioEvents {
 pub struct Registrant {
     is_first: bool,
     evented: BoxEvented,
-    read_waitings: Vec<oneshot::Sender<()>>,
-    write_waitings: Vec<oneshot::Sender<()>>,
+    read_waitings: Vec<oneshot::Monitored<io::Error>>,
+    write_waitings: Vec<oneshot::Monitored<io::Error>>,
 }
 impl Registrant {
     pub fn new(evented: BoxEvented) -> Self {
@@ -130,10 +130,10 @@ impl Poller {
         for e in self.events.0.iter() {
             let r = assert_some!(self.registrants.get_mut(&e.token()));
             if e.kind().is_readable() {
-                for _ in r.read_waitings.drain(..).map(|tx| tx.send(())) {}
+                for _ in r.read_waitings.drain(..).map(|tx| tx.succeed()) {}
             }
             if e.kind().is_writable() {
-                for _ in r.write_waitings.drain(..).map(|tx| tx.send(())) {}
+                for _ in r.write_waitings.drain(..).map(|tx| tx.succeed()) {}
             }
             Self::mio_register(&self.poll, e.token(), r)?;
         }
@@ -296,10 +296,10 @@ impl EventedHandle {
             shared_count: Arc::new(AtomicUsize::new(1)),
         }
     }
-    pub fn monitor(&self, interest: Interest) -> Monitor {
-        let (tx, rx) = oneshot::channel();
-        let _ = self.request_tx.send(Request::Monitor(self.token, interest, tx));
-        Monitor(rx)
+    pub fn monitor(&self, interest: Interest) -> oneshot::Monitor<io::Error> {
+        let (monitored, monitor) = oneshot::monitor();
+        let _ = self.request_tx.send(Request::Monitor(self.token, interest, monitored));
+        monitor
     }
 }
 impl Clone for EventedHandle {
@@ -317,16 +317,6 @@ impl Drop for EventedHandle {
         if 1 == self.shared_count.fetch_sub(1, atomic::Ordering::SeqCst) {
             let _ = self.request_tx.send(Request::Deregister(self.token));
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct Monitor(oneshot::Receiver<()>);
-impl Future for Monitor {
-    type Item = ();
-    type Error = std_mpsc::RecvError;
-    fn poll(&mut self) -> futures::Poll<Self::Item, Self::Error> {
-        self.0.poll()
     }
 }
 
@@ -355,7 +345,7 @@ impl fmt::Debug for BoxEvented {
 pub enum Request {
     Register(BoxEvented, oneshot::Sender<EventedHandle>),
     Deregister(mio::Token),
-    Monitor(mio::Token, Interest, oneshot::Sender<()>),
+    Monitor(mio::Token, Interest, oneshot::Monitored<io::Error>),
     SetTimeout(usize, time::Instant, oneshot::Sender<()>),
     CancelTimeout(usize, time::Instant),
 }

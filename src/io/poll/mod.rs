@@ -3,7 +3,7 @@ use std::sync::Arc;
 use mio;
 
 pub use self::poller::{Poller, PollerHandle, Timeout, EventedHandle};
-pub use self::poller::{Register, Monitor, Interest};
+pub use self::poller::{Register, Interest};
 pub use self::pool::{PollerPool, PollerPoolHandle};
 
 use sync::atomic::AtomicCell;

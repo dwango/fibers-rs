@@ -1,6 +1,7 @@
 extern crate mio;
 extern crate futures;
 extern crate splay_tree;
+extern crate num_cpus;
 #[macro_use]
 extern crate lazy_static;
 
