@@ -2,8 +2,10 @@ use std::io;
 
 pub use self::tcp::{TcpStream, Connect};
 pub use self::tcp::{TcpListener, Bind, Incoming};
+pub use self::udp::{UdpSocket, UdpBind, SendTo, RecvFrom};
 
 mod tcp;
+mod udp;
 
 #[derive(Debug)]
 pub struct ReadHalf<T>(T);
