@@ -4,8 +4,10 @@ extern crate futures;
 extern crate handy_io;
 extern crate fibers;
 
+use std::io;
 use clap::{App, Arg};
-use handy_io::io::{AsyncWrite, AsyncRead};
+use handy_io::io::{ReadFrom, WriteTo};
+use handy_io::pattern::{self, Window, Branch, Pattern};
 use futures::{Future, Stream};
 use fibers::fiber::Executor;
 
@@ -22,7 +24,7 @@ fn main() {
     let verbose = matches.is_present("VERBOSE");
 
     let executor = Executor::new().expect("Cannot create Executor");
-    let handle0 = executor.handle();
+    let handle = executor.handle();
     executor.spawn(fibers::net::TcpListener::bind(addr)
         .and_then(move |listener| {
             println!("# Start listening: {}: ", addr);
@@ -30,34 +32,55 @@ fn main() {
                 if verbose {
                     println!("# CONNECTED: {}", addr);
                 }
-                handle0.spawn(client.and_then(|client| {
-                        client.async_read_fold(vec![0; 1024], None, |_, mut buf, read_size| {
-                                // TODO: Use Window
-                                buf.truncate(read_size);
-                                let response = {
-                                    let mut headers = [httparse::EMPTY_HEADER; 16];
-                                    let mut req = httparse::Request::new(&mut headers);
-                                    let status = req.parse(&buf).expect("TODO");
-                                    if status.is_partial() {
-                                        None
-                                    } else {
-                                        let body_offset = status.unwrap();
-                                        let response = handle_request(req, &buf[body_offset..]);
-                                        Some(response)
-                                    }
-                                };
-                                if let Some(response) = response {
-                                    Err((buf, Ok(Some(response))))
+                handle.spawn(client.and_then(|client| {
+                        let read_request_pattern = pattern::read::until(|buf, _is_eos| {
+                                // Read header
+                                let mut headers = [httparse::EMPTY_HEADER; 16];
+                                let mut req = httparse::Request::new(&mut headers);
+                                let status = req.parse(&buf).map_err(into_io_error)?;
+                                if status.is_partial() {
+                                    Ok(None)
                                 } else {
-                                    let new_len = buf.len() + read_size;
-                                    buf.resize(new_len, 0);
-                                    Ok((buf, None))
+                                    let content_len = get_content_length(&req.headers)?;
+                                    let content_offset = status.unwrap();
+                                    Ok(Some((content_offset, content_len)))
                                 }
                             })
-                            .map_err(|(_, _, e)| e)
-                    })
-                    .and_then(|(client, _, response)| {
-                        client.async_write_all(response.unwrap()).map_err(|(_, _, e)| e)
+                            .and_then(|(mut buf, (content_offset, content_len))| {
+                                // Read content
+                                let read_size = buf.len();
+                                let request_len = content_offset + content_len;
+                                buf.resize(request_len, 0);
+                                let buf = Window::new(buf).skip(read_size);
+                                let pattern = if read_size == request_len {
+                                    Branch::A(Ok(buf)) as Branch<_, _>
+                                } else {
+                                    Branch::B(buf)
+                                };
+                                pattern.map(move |buf: Window<_>| buf.set_start(content_offset))
+                            });
+                        read_request_pattern.lossless_read_from(client)
+                            .then(|result| {
+                                // Write response
+                                let (client, result) = match result {
+                                    Ok((client, content)) => (client, Ok(content)),
+                                    Err((client, error)) => (client, Err(error)),
+                                };
+                                let pattern = Pattern::and_then(result, |content| {
+                                        format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
+                                                content.as_ref().len())
+                                            .chain(content)
+                                            .map(|_| ())
+                                    })
+                                    .or_else(|error| {
+                                        let message = error.to_string();
+                                        format!("HTTP/1.1 500 OK\r\nContent-Length: {}\r\n\r\n",
+                                                message.len())
+                                            .chain(message)
+                                            .map(|_| ())
+                                    });
+                                pattern.write_to(client)
+                            })
                     })
                     .then(move |r| {
                         if verbose {
@@ -75,12 +98,19 @@ fn main() {
     executor.run().expect("Execution failed");
 }
 
-fn handle_request(request: httparse::Request, body: &[u8]) -> Vec<u8> {
-    let mut v: Vec<_> = format!("HTTP/1.{} 200 OK\r\nContent-Length: {}\r\nConnection: \
-                                 close\r\n\r\n",
-                                request.version.unwrap(),
-                                body.len())
-        .into();
-    v.extend(body);
-    v
+fn get_content_length(headers: &[httparse::Header]) -> io::Result<usize> {
+    headers.iter()
+        .find(|h| h.name.to_lowercase() == "content-length")
+        .map(|h| {
+            std::str::from_utf8(h.value)
+                .map_err(into_io_error)
+                .and_then(|s| s.parse::<usize>().map_err(into_io_error))
+        })
+        .unwrap_or_else(|| {
+            Err(io::Error::new(io::ErrorKind::InvalidData, "No content-length header"))
+        })
+}
+
+fn into_io_error<E: std::error::Error + Send + Sync + 'static>(e: E) -> io::Error {
+    io::Error::new(io::ErrorKind::Other, Box::new(e))
 }

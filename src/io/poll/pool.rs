@@ -30,7 +30,7 @@ impl PollerPool {
             pollers.push(poller.handle());
             thread::spawn(move || {
                 while let Ok(Async::NotReady) = link1.poll().map_err(|e| e) {
-                    if let Err(e) = poller.poll(Some(time::Duration::from_millis(100))) {
+                    if let Err(e) = poller.poll(Some(time::Duration::from_millis(1))) {
                         link1.fail(e);
                         return;
                     }
