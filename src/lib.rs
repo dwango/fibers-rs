@@ -28,7 +28,7 @@ pub mod net;
 pub mod sync;
 pub mod fiber;
 pub mod timer;
-pub mod collections;
+mod collections;
 
 #[cfg(test)]
 mod tests {
