@@ -27,7 +27,10 @@ pub mod io;
 pub mod net;
 pub mod sync;
 pub mod fiber;
+
+// TODO(?): s/timer/time/
 pub mod timer;
+
 mod collections;
 
 #[cfg(test)]

@@ -1,6 +1,5 @@
 use std::io;
 use std::mem;
-use std::error;
 use std::net::SocketAddr;
 use futures::{Poll, Async, Future, Stream};
 use mio;
@@ -10,8 +9,55 @@ use io::poll;
 use io::poll::EventedHandle;
 use io::poll::SharableEvented;
 use sync::oneshot::Monitor;
-use super::{ReadHalf, WriteHalf};
+use super::{into_io_error, Bind};
 
+/// A structure representing a socket server.
+///
+/// # Examples
+///
+/// ```
+/// // See also: fibers/examples/tcp_example.rs
+/// # extern crate fibers;
+/// # extern crate futures;
+/// use fibers::fiber::Executor;
+/// use fibers::net::{TcpListener, TcpStream};
+/// use fibers::sync::oneshot;
+/// use futures::{Future, Stream};
+///
+/// # fn main() {
+/// let mut executor = Executor::new().unwrap();
+/// let (addr_tx, addr_rx) = oneshot::channel();
+///
+/// // Spawns TCP listener
+/// executor.spawn(TcpListener::bind("127.0.0.1:0".parse().unwrap())
+///     .and_then(|listener| {
+///         let addr = listener.local_addr().unwrap();
+///         println!("# Start listening: {}", addr);
+///         addr_tx.send(addr).unwrap();
+///         listener.incoming()
+///             .for_each(move |(_client, addr)| {
+///                 println!("# Accepted: {}", addr);
+///                 Ok(())
+///             })
+///     })
+///     .map_err(|e| panic!("{:?}", e)));
+///
+/// // Spawns TCP client
+/// let mut monitor = executor.spawn_monitor(addr_rx.map_err(|e| panic!("{:?}", e))
+///     .and_then(|server_addr| {
+///         TcpStream::connect(server_addr).and_then(move |_stream| {
+///             println!("# Connected: {}", server_addr);
+///             Ok(())
+///         })
+///     }));
+///
+/// // Runs until the TCP client exits
+/// while monitor.poll().unwrap().is_not_ready() {
+///     executor.run_once(None).unwrap();
+/// }
+/// println!("# Succeeded");
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct TcpListener {
     inner: SharableEvented<mio::tcp::TcpListener>,
@@ -19,58 +65,66 @@ pub struct TcpListener {
     monitor: Option<Monitor<io::Error>>,
 }
 impl TcpListener {
-    // TODO: doc for panic condition
-    pub fn bind(addr: SocketAddr) -> Bind {
-        Bind::Bind(addr)
+    /// Makes a future to create a new `TcpListener` which will be bound to the specified address.
+    pub fn bind(addr: SocketAddr) -> TcpListenerBind {
+        TcpListenerBind(Bind::Bind(addr, mio::tcp::TcpListener::bind))
     }
+
+    /// Makes a stream of the connections which will be accepted by this listener.
     pub fn incoming(self) -> Incoming {
         Incoming(self)
     }
-    fn new(inner: SharableEvented<mio::tcp::TcpListener>, handle: EventedHandle) -> Self {
-        TcpListener {
-            inner: inner,
-            handle: handle,
-            monitor: None,
-        }
+
+    /// Returns the local socket address of this listener.
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.inner.with_inner_ref(|inner| inner.local_addr())
+    }
+
+    /// Calls `f` with the reference to the inner socket.
+    pub unsafe fn with_inner<F, T>(&self, f: F) -> T
+        where F: FnOnce(&mio::tcp::TcpListener) -> T
+    {
+        self.inner.with_inner_ref(f)
     }
 }
 
+/// A future which will create a new `TcpListener` which will be bound to the specified address.
+///
+/// This is created by calling `TcpListener::bind` function.
+/// It is permitted to move the future across fibers.
+///
+/// # Panics
+///
+/// If the future is polled on the outside of a fiber, it may crash.
 #[derive(Debug)]
-pub enum Bind {
-    Bind(SocketAddr),
-    Registering(SharableEvented<mio::tcp::TcpListener>, poll::Register),
-    Polled,
-}
-impl Future for Bind {
+pub struct TcpListenerBind(Bind<fn(&SocketAddr) -> io::Result<mio::tcp::TcpListener>,
+                                mio::tcp::TcpListener>);
+impl Future for TcpListenerBind {
     type Item = TcpListener;
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match mem::replace(self, Bind::Polled) {
-            Bind::Bind(addr) => {
-                let listener = mio::tcp::TcpListener::bind(&addr)?;
-                let listener = SharableEvented::new(listener);
-                let register =
-                    assert_some!(fiber::with_poller(|poller| poller.register(listener.clone())));
-                *self = Bind::Registering(listener, register);
-                self.poll()
+        Ok(self.0.poll()?.map(|(listener, handle)| {
+            TcpListener {
+                inner: listener,
+                handle: handle,
+                monitor: None,
             }
-            Bind::Registering(listener, mut future) => {
-                if let Async::Ready(handle) = future.poll().map_err(into_io_error)? {
-                    Ok(Async::Ready(TcpListener::new(listener, handle)))
-                } else {
-                    *self = Bind::Registering(listener, future);
-                    Ok(Async::NotReady)
-                }
-            }
-            Bind::Polled => panic!("Cannot poll Bind twice"),
-        }
+        }))
     }
 }
 
+/// An infinite stream of the connections which will be accepted by the listener.
+///
+/// This is created by calling `TcpListener::incoming` method.
+/// It is permitted to move the future across fibers.
+///
+/// # Panics
+///
+/// If the stream is polled on the outside of a fiber, it may crash.
 #[derive(Debug)]
 pub struct Incoming(TcpListener);
 impl Stream for Incoming {
-    type Item = (Connect, SocketAddr); // TODO: name
+    type Item = (Connected, SocketAddr);
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         if let Some(mut monitor) = self.0.monitor.take() {
@@ -86,7 +140,7 @@ impl Stream for Incoming {
                     let stream = SharableEvented::new(stream);
                     let register =
                         assert_some!(fiber::with_poller(|poller| poller.register(stream.clone())));
-                    let stream = Connect::Registering(stream, register);
+                    let stream = Connected(Some((stream, register)));
                     Ok(Async::Ready(Some((stream, addr))))
                 }
                 Err(e) => {
@@ -102,52 +156,94 @@ impl Stream for Incoming {
     }
 }
 
+/// A future which represents a `TcpStream` connected to a `TcpListener`.
+///
+/// This is produced by `Incoming` stream.
+/// It is permitted to move the future across fibers.
+///
+/// # Panics
+///
+/// If the future is polled on the outside of a fiber, it may crash.
 #[derive(Debug)]
-pub enum Connect {
-    Connect(SocketAddr),
-    Registering(SharableEvented<mio::tcp::TcpStream>, poll::Register),
-    Connecting(TcpStream),
-    Polled,
-}
-impl Future for Connect {
+pub struct Connected(Option<(SharableEvented<mio::tcp::TcpStream>, poll::Register)>);
+impl Future for Connected {
     type Item = TcpStream;
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match mem::replace(self, Connect::Polled) {
-            Connect::Connect(addr) => {
-                let stream = mio::tcp::TcpStream::connect(&addr)?;
-                let stream = SharableEvented::new(stream);
-                let register =
-                    assert_some!(fiber::with_poller(|poller| poller.register(stream.clone())));
-                *self = Connect::Registering(stream, register);
-                self.poll()
-            }
-            Connect::Registering(stream, mut future) => {
-                if let Async::Ready(handle) = future.poll().map_err(into_io_error)? {
-                    *self = Connect::Connecting(TcpStream::new(stream, handle));
-                    self.poll()
-                } else {
-                    *self = Connect::Registering(stream, future);
-                    Ok(Async::NotReady)
-                }
-            }
-            Connect::Connecting(mut stream) => {
-                use std::io::Write;
-                match stream.flush() {
-                    Ok(()) => Ok(Async::Ready(stream)),
-                    Err(e) => {
-                        if e.kind() == io::ErrorKind::WouldBlock {
-                            Ok(Async::NotReady)
-                        } else {
-                            Err(e)
-                        }
-                    }
-                }
-            }
-            Connect::Polled => panic!("Cannot poll Connect twice"),
+        let (stream, mut future) = self.0.take().expect("Cannot poll Connected twice");
+        if let Async::Ready(handle) = future.poll().map_err(into_io_error)? {
+            Ok(Async::Ready(TcpStream::new(stream, handle)))
+        } else {
+            self.0 = Some((stream, future));
+            Ok(Async::NotReady)
         }
     }
 }
+
+/// A structure which represents a TCP stream between a local socket and a remote socket.
+///
+/// The socket will be closed when the value is dropped.
+///
+/// # Note
+///
+/// Non blocking mode is always enabled on this socket.
+/// Roughly speaking, if an operation (read or write) for a socket would block,
+/// it returns the `std::io::ErrorKind::WouldBlock` error and
+/// current fiber is suspended until the socket becomes available.
+/// If the fiber has multiple sockets (or other objects which may block),
+/// it will be suspended only the case that all of them are unavailable.
+///
+/// To handle read/write operations over TCP streams in
+/// [futures](https://github.com/alexcrichton/futures-rs) style,
+/// it is preferred to use external crate like [handy_io](https://github.com/sile/handy_io).
+///
+/// # Examples
+///
+/// ```
+/// // See also: fibers/examples/tcp_example.rs
+/// # extern crate fibers;
+/// # extern crate futures;
+/// use fibers::fiber::Executor;
+/// use fibers::net::{TcpListener, TcpStream};
+/// use fibers::sync::oneshot;
+/// use futures::{Future, Stream};
+///
+/// # fn main() {
+/// let mut executor = Executor::new().unwrap();
+/// let (addr_tx, addr_rx) = oneshot::channel();
+///
+/// // Spawns TCP listener
+/// executor.spawn(TcpListener::bind("127.0.0.1:0".parse().unwrap())
+///     .and_then(|listener| {
+///         let addr = listener.local_addr().unwrap();
+///         println!("# Start listening: {}", addr);
+///         addr_tx.send(addr).unwrap();
+///         listener.incoming()
+///             .for_each(move |(_client, addr)| {
+///                 println!("# Accepted: {}", addr);
+///                 Ok(())
+///             })
+///     })
+///     .map_err(|e| panic!("{:?}", e)));
+///
+/// // Spawns TCP client
+/// let mut monitor = executor.spawn_monitor(addr_rx.map_err(|e| panic!("{:?}", e))
+///     .and_then(|server_addr| {
+///         TcpStream::connect(server_addr).and_then(move |mut stream| {
+///             use std::io::Write;
+///             println!("# Connected: {}", server_addr);
+///             stream.write(b"Hello World!"); // This may return `WouldBlock` error
+///             Ok(())
+///         })
+///     }));
+///
+/// // Runs until the TCP client exits
+/// while monitor.poll().unwrap().is_not_ready() {
+///     executor.run_once(None).unwrap();
+/// }
+/// println!("# Succeeded");
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct TcpStream {
     inner: SharableEvented<mio::tcp::TcpStream>,
@@ -155,8 +251,17 @@ pub struct TcpStream {
     read_monitor: Option<Monitor<io::Error>>,
     write_monitor: Option<Monitor<io::Error>>,
 }
+impl Clone for TcpStream {
+    fn clone(&self) -> Self {
+        TcpStream {
+            inner: self.inner.clone(),
+            handle: self.handle.clone(),
+            read_monitor: None,
+            write_monitor: None,
+        }
+    }
+}
 impl TcpStream {
-    // TODO: implements other tcp related functions
     fn new(inner: SharableEvented<mio::tcp::TcpStream>, handle: EventedHandle) -> Self {
         TcpStream {
             inner: inner,
@@ -166,20 +271,28 @@ impl TcpStream {
         }
     }
 
-    // TODO: doc for panic condition
+    /// Makes a future to open a TCP connection to a remote host.
     pub fn connect(addr: SocketAddr) -> Connect {
-        Connect::Connect(addr)
+        Connect(ConnectInner::Connect(addr))
     }
-    pub fn split(mut self) -> (ReadHalf<Self>, WriteHalf<Self>) {
-        let read_half = ReadHalf(TcpStream {
-            inner: self.inner.clone(),
-            handle: self.handle.clone(),
-            read_monitor: self.read_monitor.take(),
-            write_monitor: None,
-        });
-        let write_half = WriteHalf(self);
-        (read_half, write_half)
+
+    /// Returns the local socket address of this listener.
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.inner.with_inner_ref(|inner| inner.local_addr())
     }
+
+    /// Returns the socket address of the remote peer of this TCP connection.
+    pub fn peer_addr(&self) -> io::Result<SocketAddr> {
+        self.inner.with_inner_ref(|inner| inner.peer_addr())
+    }
+
+    /// Calls `f` with the reference to the inner socket.
+    pub unsafe fn with_inner<F, T>(&self, f: F) -> T
+        where F: FnOnce(&mio::tcp::TcpStream) -> T
+    {
+        self.inner.with_inner_ref(f)
+    }
+
     fn monitor(&mut self, interest: poll::Interest) -> &mut Option<Monitor<io::Error>> {
         if interest.is_read() {
             &mut self.read_monitor
@@ -221,6 +334,67 @@ impl io::Write for TcpStream {
     }
 }
 
-fn into_io_error<E: error::Error + Send + Sync + 'static>(error: E) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, Box::new(error))
+/// A future which will open a TCP connection to a remote host.
+///
+/// This is created by calling `TcpStream::connect` function.
+/// It is permitted to move the future across fibers.
+///
+/// # Panics
+///
+/// If the future is polled on the outside of a fiber, it may crash.
+#[derive(Debug)]
+pub struct Connect(ConnectInner);
+impl Future for Connect {
+    type Item = TcpStream;
+    type Error = io::Error;
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.0.poll()
+    }
+}
+
+#[derive(Debug)]
+enum ConnectInner {
+    Connect(SocketAddr),
+    Registering(SharableEvented<mio::tcp::TcpStream>, poll::Register),
+    Connecting(TcpStream),
+    Polled,
+}
+impl Future for ConnectInner {
+    type Item = TcpStream;
+    type Error = io::Error;
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        match mem::replace(self, ConnectInner::Polled) {
+            ConnectInner::Connect(addr) => {
+                let stream = mio::tcp::TcpStream::connect(&addr)?;
+                let stream = SharableEvented::new(stream);
+                let register =
+                    assert_some!(fiber::with_poller(|poller| poller.register(stream.clone())));
+                *self = ConnectInner::Registering(stream, register);
+                self.poll()
+            }
+            ConnectInner::Registering(stream, mut future) => {
+                if let Async::Ready(handle) = future.poll().map_err(into_io_error)? {
+                    *self = ConnectInner::Connecting(TcpStream::new(stream, handle));
+                    self.poll()
+                } else {
+                    *self = ConnectInner::Registering(stream, future);
+                    Ok(Async::NotReady)
+                }
+            }
+            ConnectInner::Connecting(mut stream) => {
+                use std::io::Write;
+                match stream.flush() {
+                    Ok(()) => Ok(Async::Ready(stream)),
+                    Err(e) => {
+                        if e.kind() == io::ErrorKind::WouldBlock {
+                            Ok(Async::NotReady)
+                        } else {
+                            Err(e)
+                        }
+                    }
+                }
+            }
+            ConnectInner::Polled => panic!("Cannot poll ConnectInner twice"),
+        }
+    }
 }

@@ -29,7 +29,7 @@ fn main() {
                 println!("# CONNECTED: {}", addr);
                 let handle1 = handle0.clone();
                 handle0.spawn(client.and_then(move |client| {
-                        let (r, w) = client.split();
+                        let (r, w) = (client.clone(), client);
                         let (tx, rx) = fibers::sync::mpsc::channel();
 
                         // writer

@@ -96,6 +96,18 @@ impl Executor {
     {
         self.handle().spawn(future);
     }
+    pub fn spawn_monitor<F, E>(&self, future: F) -> oneshot::Monitor<E>
+        where F: Future<Item = (), Error = E> + Send + 'static,
+              E: Send + 'static
+    {
+        let (monitored, monitor) = oneshot::monitor();
+        self.spawn(future.then(|result| {
+            monitored.exit(result);
+            Ok(())
+        }));
+        monitor
+    }
+
     pub fn spawn_fn<F, T>(&self, f: F)
         where F: FnOnce() -> T + Send + 'static,
               T: IntoFuture<Item = (), Error = ()> + Send + 'static,
@@ -105,22 +117,25 @@ impl Executor {
     }
     pub fn run(mut self) -> io::Result<()> {
         loop {
-            if !self.run_once()? {
-                thread::sleep(time::Duration::from_millis(1));
-            }
+            self.run_once(Some(time::Duration::from_millis(1)))?
         }
     }
-    pub fn run_once(&mut self) -> io::Result<bool> {
-        let mut did_something = false;
+    pub fn run_once(&mut self, sleep_duration_if_idle: Option<time::Duration>) -> io::Result<()> {
+        let mut is_idle = true;
         match self.request_rx.try_recv() {
             Err(std_mpsc::TryRecvError::Empty) => {}
             Err(std_mpsc::TryRecvError::Disconnected) => unreachable!(),
             Ok(request) => {
-                did_something = true;
+                is_idle = false;
                 self.handle_request(request)
             }
         }
-        Ok(did_something)
+        if is_idle {
+            if let Some(duration) = sleep_duration_if_idle {
+                thread::sleep(duration);
+            }
+        }
+        Ok(())
     }
     fn handle_request(&mut self, request: Request) {
         match request {

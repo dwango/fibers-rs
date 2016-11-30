@@ -33,7 +33,7 @@ fn main() {
     executor.spawn(fibers::net::TcpStream::connect(addr)
         .and_then(move |stream| {
             println!("# CONNECTED: {}", addr);
-            let (r, w) = stream.split();
+            let (r, w) = (stream.clone(), stream);
 
             // writer
             handle.spawn(stdin_rx.map_err(|_| -> io::Error { unreachable!() })
@@ -76,6 +76,6 @@ fn main() {
     });
 
     while let Ok(Async::NotReady) = monitor.poll() {
-        executor.run_once().expect("Execution failed");
+        executor.run_once(None).expect("Execution failed");
     }
 }
