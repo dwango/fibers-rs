@@ -11,12 +11,12 @@
 //! ```
 //! # extern crate futures;
 //! # extern crate fibers;
+//! use fibers::{Executor, InPlaceExecutor};
 //! use fibers::sync::mpsc;
-//! use fibers::fiber::Executor;
 //! use futures::{Future, Stream};
 //!
 //! # fn main() {
-//! let mut executor = Executor::new().unwrap();
+//! let mut executor = InPlaceExecutor::new().unwrap();
 //! let (tx0, rx) = mpsc::channel();
 //!
 //! // Spanws receiver
@@ -75,12 +75,12 @@ use internal::sync_atomic::AtomicCell;
 /// ```
 /// # extern crate futures;
 /// # extern crate fibers;
+/// use fibers::{Executor, InPlaceExecutor};
 /// use fibers::sync::mpsc;
-/// use fibers::fiber::Executor;
 /// use futures::{Future, Stream};
 ///
 /// # fn main() {
-/// let mut executor = Executor::new().unwrap();
+/// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (tx0, rx) = mpsc::channel();
 ///
 /// // Spanws receiver

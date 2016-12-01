@@ -26,12 +26,12 @@ use sync::mpsc;
 /// ```
 /// # extern crate fibers;
 /// # extern crate futures;
+/// use fibers::{Executor, InPlaceExecutor};
 /// use fibers::sync::oneshot;
-/// use fibers::fiber::Executor;
 /// use futures::Future;
 ///
 /// # fn main () {
-/// let mut executor = Executor::new().unwrap();
+/// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (tx0, rx0) = oneshot::channel();
 /// let (tx1, rx1) = oneshot::channel();
 ///
@@ -111,12 +111,12 @@ impl<T> Future for Receiver<T> {
 /// ```
 /// # extern crate fibers;
 /// # extern crate futures;
+/// use fibers::{Executor, InPlaceExecutor};
 /// use fibers::sync::oneshot;
-/// use fibers::fiber::Executor;
 /// use futures::{Async, Future};
 ///
 /// # fn main () {
-/// let mut executor = Executor::new().unwrap();
+/// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (monitored, mut monitor) = oneshot::monitor();
 ///
 /// // Spanws monitored fiber
@@ -146,12 +146,12 @@ impl<T> Future for Receiver<T> {
 /// ```
 /// # extern crate fibers;
 /// # extern crate futures;
+/// use fibers::{Executor, InPlaceExecutor};
 /// use fibers::sync::oneshot;
-/// use fibers::fiber::Executor;
 /// use futures::{Async, Future};
 ///
 /// # fn main () {
-/// let mut executor = Executor::new().unwrap();
+/// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (monitored, mut monitor) = oneshot::monitor::<(),()>();
 ///
 /// // Spanws monitored fiber

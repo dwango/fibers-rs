@@ -5,7 +5,7 @@
 //! Basically, the structures in this module are simple wrapper of
 //! the [mio](https://github.com/carllerche/mio)'s counterparts.
 //! The former implement [futures](https://github.com/alexcrichton/futures-rs) interface
-//! to facilitate writing codes for asynchronous I/O.
+//! to facilitate writing code for asynchronous I/O.
 //!
 //! If a socket is not available (i.e., may block) at the time the `Future::poll` method
 //! for the corresponding future is called, it will suspend (deschedule) current fiber by invoking

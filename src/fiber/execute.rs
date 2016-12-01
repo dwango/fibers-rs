@@ -1,3 +1,4 @@
+#![allow(unused_imports, dead_code)]
 use std::io;
 use std::time;
 use std::thread;
@@ -34,31 +35,32 @@ impl Builder {
         self
     }
     pub fn build(&self) -> io::Result<Executor> {
-        let poller_pool = poll::PollerPool::with_thread_count(self.io_poller_threads)?;
-        let mut links = Vec::new();
-        let mut schedulers = Vec::new();
-        for _ in 0..self.scheduler_threads {
-            let (link0, mut link1) = oneshot::link();
-            let mut scheduler = Scheduler::new(poller_pool.handle());
-            links.push(link0);
-            schedulers.push(scheduler.handle());
-            thread::spawn(move || {
-                while let Ok(Async::NotReady) = link1.poll() {
-                    if !scheduler.run_once() {
-                        thread::sleep(time::Duration::from_millis(1));
-                    }
-                }
-            });
-        }
+        panic!()
+        // let poller_pool = poll::PollerPool::with_thread_count(self.io_poller_threads)?;
+        // let mut links = Vec::new();
+        // let mut schedulers = Vec::new();
+        // for _ in 0..self.scheduler_threads {
+        //     let (link0, mut link1) = oneshot::link();
+        //     let mut scheduler = Scheduler::new(poller.handle());
+        //     links.push(link0);
+        //     schedulers.push(scheduler.handle());
+        //     thread::spawn(move || {
+        //         while let Ok(Async::NotReady) = link1.poll() {
+        //             if !scheduler.run_once() {
+        //                 thread::sleep(time::Duration::from_millis(1));
+        //             }
+        //         }
+        //     });
+        // }
 
-        let (tx, rx) = std_mpsc::channel();
-        Ok(Executor {
-            poller_pool: poller_pool,
-            links: links,
-            schedulers: schedulers,
-            request_tx: tx,
-            request_rx: rx,
-        })
+        // let (tx, rx) = std_mpsc::channel();
+        // Ok(Executor {
+        //     poller_pool: poller_pool,
+        //     links: links,
+        //     schedulers: schedulers,
+        //     request_tx: tx,
+        //     request_rx: rx,
+        // })
     }
 }
 

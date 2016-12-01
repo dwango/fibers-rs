@@ -32,10 +32,10 @@ pub struct Scheduler {
     run_queue: VecDeque<fiber::FiberId>,
     request_tx: RequestSender,
     request_rx: RequestReceiver,
-    poller_pool: poll::PollerPoolHandle,
+    poller: poll::PollerHandle,
 }
 impl Scheduler {
-    pub fn new(poller_pool: poll::PollerPoolHandle) -> Self {
+    pub fn new(poller: poll::PollerHandle) -> Self {
         let (request_tx, request_rx) = std_mpsc::channel();
         Scheduler {
             scheduler_id: NEXT_SCHEDULER_ID.fetch_add(1, atomic::Ordering::SeqCst),
@@ -44,7 +44,7 @@ impl Scheduler {
             run_queue: VecDeque::new(),
             request_tx: request_tx,
             request_rx: request_rx,
-            poller_pool: poller_pool,
+            poller: poller,
         }
     }
     pub fn scheduler_id(&self) -> SchedulerId {
@@ -113,7 +113,8 @@ impl Scheduler {
                 {
                     let scheduler = assert_some!(context.scheduler.as_mut());
                     if !scheduler.poller.is_alive() {
-                        scheduler.poller = self.poller_pool.allocate_poller();
+                        // TODO: Return `Err(io::Error)` to caller
+                        panic!("Poller is down");
                     }
                 }
                 assert!(context.fiber.is_none(), "Nested schedulers");
@@ -203,7 +204,7 @@ impl Context {
         self.scheduler = Some(CurrentScheduler {
             id: scheduler.scheduler_id,
             handle: scheduler.handle(),
-            poller: scheduler.poller_pool.allocate_poller(),
+            poller: scheduler.poller.clone(),
         })
     }
     pub fn with_current_ref<F, T>(f: F) -> T

@@ -20,13 +20,15 @@ macro_rules! assert_ok {
     }
 }
 
-// Add executor module
+#[doc(inline)]
+pub use self::executor::{Executor, Spawn, InPlaceExecutor};
 
 pub mod io;
 pub mod net;
 pub mod sync;
 pub mod time;
 pub mod fiber;
+pub mod executor;
 
 mod internal;
 

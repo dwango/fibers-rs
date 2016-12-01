@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+// TODO: delete this module
 use std::io;
 use std::time;
 use std::thread;

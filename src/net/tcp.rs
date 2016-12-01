@@ -17,13 +17,13 @@ use super::{into_io_error, Bind};
 /// // See also: fibers/examples/tcp_example.rs
 /// # extern crate fibers;
 /// # extern crate futures;
-/// use fibers::fiber::Executor;
+/// use fibers::{Executor, InPlaceExecutor};
 /// use fibers::net::{TcpListener, TcpStream};
 /// use fibers::sync::oneshot;
 /// use futures::{Future, Stream};
 ///
 /// # fn main() {
-/// let mut executor = Executor::new().unwrap();
+/// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (addr_tx, addr_rx) = oneshot::channel();
 ///
 /// // Spawns TCP listener
@@ -198,13 +198,13 @@ impl Future for Connected {
 /// // See also: fibers/examples/tcp_example.rs
 /// # extern crate fibers;
 /// # extern crate futures;
-/// use fibers::fiber::Executor;
+/// use fibers::{Executor, InPlaceExecutor};
 /// use fibers::net::{TcpListener, TcpStream};
 /// use fibers::sync::oneshot;
 /// use futures::{Future, Stream};
 ///
 /// # fn main() {
-/// let mut executor = Executor::new().unwrap();
+/// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (addr_tx, addr_rx) = oneshot::channel();
 ///
 /// // Spawns TCP listener

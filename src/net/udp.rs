@@ -15,13 +15,13 @@ use super::{into_io_error, Bind};
 /// # extern crate futures;
 /// # extern crate fibers;
 /// // See also: fibers/examples/udp_example.rs
-/// use fibers::fiber::Executor;
+/// use fibers::{Executor, InPlaceExecutor};
 /// use fibers::net::UdpSocket;
 /// use fibers::sync::oneshot;
 /// use futures::Future;
 ///
 /// # fn main() {
-/// let mut executor = Executor::new().unwrap();
+/// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (addr_tx, addr_rx) = oneshot::channel();
 ///
 /// // Spawns receiver
