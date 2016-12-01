@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::ops;
 use std::ptr;
 use std::sync::atomic::{self, AtomicPtr};

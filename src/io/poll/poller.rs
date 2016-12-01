@@ -10,7 +10,7 @@ use futures::{self, Future};
 use mio;
 
 use sync::oneshot;
-use collections::HeapMap;
+use internal::collections::HeapMap;
 
 pub type RequestSender = std_mpsc::Sender<Request>;
 pub type RequestReceiver = std_mpsc::Receiver<Request>;
@@ -28,8 +28,8 @@ impl fmt::Debug for MioEvents {
 pub struct Registrant {
     is_first: bool,
     evented: BoxEvented,
-    read_waitings: Vec<oneshot::Monitored<io::Error>>,
-    write_waitings: Vec<oneshot::Monitored<io::Error>>,
+    read_waitings: Vec<oneshot::Monitored<(), io::Error>>,
+    write_waitings: Vec<oneshot::Monitored<(), io::Error>>,
 }
 impl Registrant {
     pub fn new(evented: BoxEvented) -> Self {
@@ -130,10 +130,10 @@ impl Poller {
         for e in self.events.0.iter() {
             let r = assert_some!(self.registrants.get_mut(&e.token()));
             if e.kind().is_readable() {
-                for _ in r.read_waitings.drain(..).map(|tx| tx.succeed()) {}
+                for _ in r.read_waitings.drain(..).map(|tx| tx.exit(Ok(()))) {}
             }
             if e.kind().is_writable() {
-                for _ in r.write_waitings.drain(..).map(|tx| tx.succeed()) {}
+                for _ in r.write_waitings.drain(..).map(|tx| tx.exit(Ok(()))) {}
             }
             Self::mio_register(&self.poll, e.token(), r)?;
         }
@@ -296,7 +296,7 @@ impl EventedHandle {
             shared_count: Arc::new(AtomicUsize::new(1)),
         }
     }
-    pub fn monitor(&self, interest: Interest) -> oneshot::Monitor<io::Error> {
+    pub fn monitor(&self, interest: Interest) -> oneshot::Monitor<(), io::Error> {
         let (monitored, monitor) = oneshot::monitor();
         let _ = self.request_tx.send(Request::Monitor(self.token, interest, monitored));
         monitor
@@ -345,7 +345,7 @@ impl fmt::Debug for BoxEvented {
 pub enum Request {
     Register(BoxEvented, oneshot::Sender<EventedHandle>),
     Deregister(mio::Token),
-    Monitor(mio::Token, Interest, oneshot::Monitored<io::Error>),
+    Monitor(mio::Token, Interest, oneshot::Monitored<(), io::Error>),
     SetTimeout(usize, time::Instant, oneshot::Sender<()>),
     CancelTimeout(usize, time::Instant),
 }

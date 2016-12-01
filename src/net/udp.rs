@@ -170,7 +170,7 @@ struct SendToInner<B> {
     socket: UdpSocket,
     buf: B,
     target: SocketAddr,
-    monitor: Option<Monitor<io::Error>>,
+    monitor: Option<Monitor<(), io::Error>>,
 }
 
 /// A future which will receive data from the socket.
@@ -224,5 +224,5 @@ impl<B: AsMut<[u8]>> Future for RecvFrom<B> {
 struct RecvFromInner<B> {
     socket: UdpSocket,
     buf: B,
-    monitor: Option<Monitor<io::Error>>,
+    monitor: Option<Monitor<(), io::Error>>,
 }

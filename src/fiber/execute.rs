@@ -96,8 +96,9 @@ impl Executor {
     {
         self.handle().spawn(future);
     }
-    pub fn spawn_monitor<F, E>(&self, future: F) -> oneshot::Monitor<E>
-        where F: Future<Item = (), Error = E> + Send + 'static,
+    pub fn spawn_monitor<F, T, E>(&self, future: F) -> oneshot::Monitor<T, E>
+        where F: Future<Item = T, Error = E> + Send + 'static,
+              T: Send + 'static,
               E: Send + 'static
     {
         let (monitored, monitor) = oneshot::monitor();

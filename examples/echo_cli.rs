@@ -3,7 +3,6 @@ extern crate futures;
 extern crate handy_io;
 extern crate fibers;
 
-use std::io;
 use clap::{App, Arg};
 use fibers::fiber::Executor;
 use futures::{Future, Stream, Async};
@@ -27,7 +26,6 @@ fn main() {
 
     // TODO: s/Executor/System/ (?)
     let mut executor = Executor::new().expect("Cannot create Executor");
-    let (stdin_tx, stdin_rx) = fibers::sync::mpsc::channel();
     let handle = executor.handle();
     let (monitored, mut monitor) = fibers::sync::oneshot::monitor();
     executor.spawn(fibers::net::TcpStream::connect(addr)
@@ -36,8 +34,11 @@ fn main() {
             let (r, w) = (stream.clone(), stream);
 
             // writer
-            handle.spawn(stdin_rx.map_err(|_| -> io::Error { unreachable!() })
-                .fold(w, |w, buf: Vec<u8>| {
+            let stdin_stream = fibers::io::stdin()
+                .async_read_stream(vec![0; 1024].allow_partial().repeat());
+            handle.spawn(stdin_stream.map_err(|(_, e)| e)
+                .fold(w, |w, (mut buf, size)| {
+                    buf.truncate(size);
                     println!("# SEND: {} bytes", buf.len());
                     w.async_write_all(buf).map(|(w, _)| w).map_err(|(_, _, e)| e)
                 })
@@ -62,18 +63,6 @@ fn main() {
             monitored.exit(r);
             Ok(())
         }));
-
-    std::thread::spawn(move || {
-        let stream = vec![0; 1024].allow_partial().repeat();
-        let mut future = io::stdin().async_read_stream(stream).for_each(move |(mut buf, len)| {
-            buf.truncate(len);
-            stdin_tx.send(buf).expect("Cannot send input buffer");
-            Ok(())
-        });
-        loop {
-            future.poll().map_err(|(_, e)| e).expect("Standard input error");
-        }
-    });
 
     while let Ok(Async::NotReady) = monitor.poll() {
         executor.run_once(None).expect("Execution failed");

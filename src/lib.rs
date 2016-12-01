@@ -6,9 +6,6 @@ extern crate num_cpus;
 #[macro_use]
 extern crate lazy_static;
 
-#[cfg(test)]
-extern crate handy_io;
-
 macro_rules! assert_some {
     ($e:expr) => {
         $e.expect(&format!("[{}:{}] {:?} must be a Some(..)",
@@ -23,6 +20,8 @@ macro_rules! assert_ok {
     }
 }
 
+// Add executor module
+
 pub mod io;
 pub mod net;
 pub mod sync;
@@ -31,7 +30,7 @@ pub mod fiber;
 // TODO(?): s/timer/time/
 pub mod timer;
 
-mod collections;
+mod internal;
 
 #[cfg(test)]
 mod tests {

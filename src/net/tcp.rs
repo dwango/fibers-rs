@@ -62,7 +62,7 @@ use super::{into_io_error, Bind};
 pub struct TcpListener {
     inner: SharableEvented<mio::tcp::TcpListener>,
     handle: EventedHandle,
-    monitor: Option<Monitor<io::Error>>,
+    monitor: Option<Monitor<(), io::Error>>,
 }
 impl TcpListener {
     /// Makes a future to create a new `TcpListener` which will be bound to the specified address.
@@ -248,8 +248,8 @@ impl Future for Connected {
 pub struct TcpStream {
     inner: SharableEvented<mio::tcp::TcpStream>,
     handle: EventedHandle,
-    read_monitor: Option<Monitor<io::Error>>,
-    write_monitor: Option<Monitor<io::Error>>,
+    read_monitor: Option<Monitor<(), io::Error>>,
+    write_monitor: Option<Monitor<(), io::Error>>,
 }
 impl Clone for TcpStream {
     fn clone(&self) -> Self {
@@ -293,7 +293,7 @@ impl TcpStream {
         self.inner.with_inner_ref(f)
     }
 
-    fn monitor(&mut self, interest: poll::Interest) -> &mut Option<Monitor<io::Error>> {
+    fn monitor(&mut self, interest: poll::Interest) -> &mut Option<Monitor<(), io::Error>> {
         if interest.is_read() {
             &mut self.read_monitor
         } else {

@@ -6,7 +6,7 @@ pub use self::poller::{Poller, PollerHandle, Timeout, EventedHandle};
 pub use self::poller::{Register, Interest};
 pub use self::pool::{PollerPool, PollerPoolHandle};
 
-use sync::atomic::AtomicCell;
+use internal::sync_atomic::AtomicCell;
 
 mod poller;
 mod pool;
