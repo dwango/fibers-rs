@@ -25,10 +25,8 @@ macro_rules! assert_ok {
 pub mod io;
 pub mod net;
 pub mod sync;
+pub mod time;
 pub mod fiber;
-
-// TODO(?): s/timer/time/
-pub mod timer;
 
 mod internal;
 

@@ -246,6 +246,11 @@ impl CancelTimeout {
     }
 }
 
+/// A future which will expire at the specified time instant.
+///
+/// If this object is dropped before expiration, the timer will be cancelled.
+/// Thus, for example, the repetation of setting and canceling of
+/// a timer only consumpts constant memory region.
 #[derive(Debug)]
 pub struct Timeout {
     cancel: Option<CancelTimeout>,

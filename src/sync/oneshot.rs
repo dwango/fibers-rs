@@ -66,7 +66,6 @@ pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     (Sender(tx), Receiver(rx))
 }
 
-
 /// The sending-half of an asynchronous oneshot channel.
 ///
 /// This structure can be used on both inside and outside of a fiber.
