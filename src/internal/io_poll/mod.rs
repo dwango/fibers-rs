@@ -5,12 +5,10 @@ use mio;
 
 pub use self::poller::{Poller, PollerHandle, Timeout, EventedHandle};
 pub use self::poller::Register;
-pub use self::pool::{PollerPool, PollerPoolHandle};
 
 use internal::sync_atomic::{AtomicCell, AtomicBorrowMut};
 
 pub mod poller;
-mod pool;
 
 #[derive(Debug)]
 pub struct SharableEvented<T>(Arc<AtomicCell<T>>);

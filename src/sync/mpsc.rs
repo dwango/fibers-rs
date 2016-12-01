@@ -40,7 +40,7 @@
 //!
 //! // Runs `executor` until the receiver exits (i.e., channel is disconnected)
 //! while monitor.poll().unwrap().is_not_ready() {
-//!     executor.run_once(None).unwrap();
+//!     executor.run_once().unwrap();
 //! }
 //! # }
 //! ```
@@ -104,7 +104,7 @@ use internal::sync_atomic::AtomicCell;
 ///
 /// // Runs `executor` until the receiver exits (i.e., channel is disconnected)
 /// while monitor.poll().unwrap().is_not_ready() {
-///     executor.run_once(None).unwrap();
+///     executor.run_once().unwrap();
 /// }
 /// # }
 /// ```

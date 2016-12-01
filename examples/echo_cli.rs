@@ -4,8 +4,8 @@ extern crate handy_io;
 extern crate fibers;
 
 use clap::{App, Arg};
-use fibers::fiber::Executor;
-use futures::{Future, Stream, Async};
+use fibers::{Spawn, Executor, ThreadPoolExecutor};
+use futures::{Future, Stream};
 use handy_io::io::{AsyncWrite, AsyncRead};
 use handy_io::pattern::{Pattern, AllowPartial};
 
@@ -24,12 +24,10 @@ fn main() {
     let port = matches.value_of("SERVER_PORT").unwrap();
     let addr = format!("{}:{}", host, port).parse().expect("Invalid TCP address");
 
-    // TODO: s/Executor/System/ (?)
-    let mut executor = Executor::new().expect("Cannot create Executor");
+    let mut executor = ThreadPoolExecutor::new().expect("Cannot create Executor");
     let handle = executor.handle();
-    let (monitored, mut monitor) = fibers::sync::oneshot::monitor();
-    executor.spawn(fibers::net::TcpStream::connect(addr)
-        .and_then(move |stream| {
+    let monitor =
+        executor.spawn_monitor(fibers::net::TcpStream::connect(addr).and_then(move |stream| {
             println!("# CONNECTED: {}", addr);
             let (r, w) = (stream.clone(), stream);
 
@@ -57,14 +55,7 @@ fn main() {
                     println!("{}", String::from_utf8(buf).expect("Invalid UTF-8"));
                     Ok(())
                 })
-        })
-        .then(|r| {
-            println!("# Disconnected: {:?}", r);
-            monitored.exit(r);
-            Ok(())
         }));
-
-    while let Ok(Async::NotReady) = monitor.poll() {
-        executor.run_once(None).expect("Execution failed");
-    }
+    let result = executor.run_fiber(monitor).expect("Execution failed");
+    println!("# Disconnected: {:?}", result);
 }

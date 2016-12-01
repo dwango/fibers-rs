@@ -5,7 +5,7 @@ extern crate fibers;
 
 use std::io;
 use clap::{App, Arg};
-use fibers::fiber::Executor;
+use fibers::{Spawn, Executor, ThreadPoolExecutor};
 use futures::{Future, Stream};
 use handy_io::io::{AsyncWrite, AsyncRead};
 use handy_io::pattern::{Pattern, AllowPartial};
@@ -20,7 +20,7 @@ fn main() {
     let port = matches.value_of("PORT").unwrap();
     let addr = format!("0.0.0.0:{}", port).parse().expect("Invalid TCP bind address");
 
-    let executor = Executor::new().expect("Cannot create Executor");
+    let executor = ThreadPoolExecutor::new().expect("Cannot create Executor");
     let handle0 = executor.handle();
     executor.spawn(fibers::net::TcpListener::bind(addr)
         .and_then(move |listener| {

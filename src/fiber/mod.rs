@@ -1,21 +1,46 @@
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicUsize};
-use futures::{Async, Future, BoxFuture};
+use futures::{self, Async, Future, BoxFuture, IntoFuture};
 
-pub use self::execute::{Executor, ExecutorHandle, Builder};
 pub use self::schedule::{Scheduler, SchedulerHandle};
 
 use io::poll;
+use sync::oneshot::{self, Monitor};
 
-mod execute;
 mod schedule;
 
 pub type FiberId = usize;
 
 pub type FiberFuture = BoxFuture<(), ()>;
 
-pub struct Task(FiberFuture);
+/// The `Spawn` trait allows for spawning fibers.
+pub trait Spawn {
+    /// Spawns a fiber which will execute given future.
+    fn spawn<F>(&self, future: F) where F: Future<Item = (), Error = ()> + Send + 'static;
+
+    /// Equivalent to `self.spawn(futures::lazy(|| f()))`.
+    fn spawn_fn<F, T>(&self, f: F)
+        where F: FnOnce() -> T + Send + 'static,
+              T: IntoFuture<Item = (), Error = ()> + Send + 'static,
+              T::Future: Send
+    {
+        self.spawn(futures::lazy(|| f()))
+    }
+
+    /// Spawns a fiber and returns a future to monitor it's execution result.
+    fn spawn_monitor<F, T, E>(&self, f: F) -> Monitor<T, E>
+        where F: Future<Item = T, Error = E> + Send + 'static,
+              T: Send + 'static,
+              E: Send + 'static
+    {
+        let (monitored, monitor) = oneshot::monitor();
+        self.spawn(f.then(move |r| Ok(monitored.exit(r))));
+        monitor
+    }
+}
+
+pub struct Task(pub FiberFuture);
 impl fmt::Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Task(_)")

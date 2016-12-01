@@ -38,7 +38,7 @@ fn main() {
 
     // Runs until the receiver fiber exits.
     while monitor.poll().unwrap().is_not_ready() {
-        executor.run_once(None).unwrap();
+        executor.run_once().unwrap();
     }
     println!("# Succeeded");
 }

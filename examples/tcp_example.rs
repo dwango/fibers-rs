@@ -2,14 +2,14 @@ extern crate fibers;
 extern crate futures;
 extern crate handy_io;
 
-use fibers::fiber::Executor;
+use fibers::{Spawn, Executor, ThreadPoolExecutor};
 use fibers::net::{TcpListener, TcpStream};
 use fibers::sync::oneshot;
 use futures::{Future, Stream};
 use handy_io::io::{AsyncWrite, AsyncRead};
 
 fn main() {
-    let mut executor = Executor::new().unwrap();
+    let mut executor = ThreadPoolExecutor::new().unwrap();
     let handle = executor.handle();
     let (addr_tx, addr_rx) = oneshot::channel();
 
@@ -48,7 +48,7 @@ fn main() {
 
     // Runs until the TCP client exits
     while monitor.poll().unwrap().is_not_ready() {
-        executor.run_once(None).unwrap();
+        executor.run_once().unwrap();
     }
     println!("# Succeeded");
 }

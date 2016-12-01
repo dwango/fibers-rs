@@ -57,7 +57,7 @@ use sync::mpsc;
 ///
 /// // Runs `executor` until the receiver exits (i.e., channel is disconnected)
 /// while monitor.poll().unwrap().is_not_ready() {
-///     executor.run_once(None).unwrap();
+///     executor.run_once().unwrap();
 /// }
 /// # }
 /// ```
@@ -135,7 +135,7 @@ impl<T> Future for Receiver<T> {
 ///         assert_eq!(value, "succeeded");
 ///         break;
 ///     } else {
-///         executor.run_once(None).unwrap();
+///         executor.run_once().unwrap();
 ///     }
 /// }
 /// # }
@@ -166,7 +166,7 @@ impl<T> Future for Receiver<T> {
 /// loop {
 ///     match monitor.poll() {
 ///         Ok(Async::NotReady) => {
-///             executor.run_once(None).unwrap();
+///             executor.run_once().unwrap();
 ///         }
 ///         Ok(Async::Ready(_)) => unreachable!(),
 ///         Err(e) => {

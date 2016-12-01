@@ -2,9 +2,9 @@ use std::io;
 use std::time;
 use futures::Future;
 
-use fiber;
+use fiber::{self, Spawn};
 use io::poll;
-use super::{Executor, Spawn};
+use super::Executor;
 
 /// An executor that executes spawned fibers and I/O event polling on current thread.
 ///
@@ -36,7 +36,7 @@ use super::{Executor, Spawn};
 ///         assert_eq!(answer, 13);
 ///         return;
 ///     } else {
-///         executor.run_once(None).unwrap();
+///         executor.run_once().unwrap();
 ///     }
 /// }
 /// # }
@@ -61,10 +61,9 @@ impl Executor for InPlaceExecutor {
     fn handle(&self) -> Self::Handle {
         InPlaceExecutorHandle { scheduler: self.scheduler.handle() }
     }
-    fn run_once(&mut self, sleep_duration_if_idle: Option<time::Duration>) -> io::Result<()> {
+    fn run_once(&mut self) -> io::Result<()> {
         self.scheduler.run_once();
-        let timeout = sleep_duration_if_idle.unwrap_or_else(|| time::Duration::from_millis(0));
-        self.poller.poll(Some(timeout))?;
+        self.poller.poll(Some(time::Duration::from_millis(1)))?;
         Ok(())
     }
 }

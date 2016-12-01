@@ -48,7 +48,7 @@ use super::{into_io_error, Bind};
 ///
 /// // Runs until the monitored fiber (i.e., receiver) exits.
 /// while monitor.poll().unwrap().is_not_ready() {
-///     executor.run_once(None).unwrap();
+///     executor.run_once().unwrap();
 /// }
 /// # }
 /// ```

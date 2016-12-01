@@ -1,5 +1,4 @@
 extern crate mio;
-extern crate rand;
 extern crate futures;
 extern crate splay_tree;
 extern crate num_cpus;
@@ -21,7 +20,10 @@ macro_rules! assert_ok {
 }
 
 #[doc(inline)]
-pub use self::executor::{Executor, Spawn, InPlaceExecutor};
+pub use self::executor::{Executor, InPlaceExecutor, ThreadPoolExecutor};
+
+#[doc(inline)]
+pub use self::fiber::Spawn;
 
 pub mod io;
 pub mod net;

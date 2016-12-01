@@ -9,7 +9,7 @@ use clap::{App, Arg};
 use handy_io::io::{ReadFrom, WriteTo};
 use handy_io::pattern::{self, Window, Branch, Pattern};
 use futures::{Future, Stream};
-use fibers::fiber::Executor;
+use fibers::{Spawn, Executor, ThreadPoolExecutor};
 
 fn main() {
     let matches = App::new("http_echo_srv")
@@ -23,7 +23,7 @@ fn main() {
     let addr = format!("0.0.0.0:{}", port).parse().expect("Invalid TCP bind address");
     let verbose = matches.is_present("VERBOSE");
 
-    let executor = Executor::new().expect("Cannot create Executor");
+    let executor = ThreadPoolExecutor::new().expect("Cannot create Executor");
     let handle = executor.handle();
     executor.spawn(fibers::net::TcpListener::bind(addr)
         .and_then(move |listener| {
