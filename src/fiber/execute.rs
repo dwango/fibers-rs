@@ -6,7 +6,7 @@ use rand;
 use num_cpus;
 use futures::{self, Async, Future, IntoFuture};
 
-use io::poll;
+use internal::io_poll as poll;
 use sync::oneshot::{self, Link};
 use fiber;
 use super::{Scheduler, SchedulerHandle};

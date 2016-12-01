@@ -5,9 +5,7 @@ use futures::{Poll, Async, Future, Stream};
 use mio;
 
 use fiber;
-use io::poll;
-use io::poll::EventedHandle;
-use io::poll::SharableEvented;
+use internal::io_poll::{EventedHandle, Interest, Register};
 use sync::oneshot::Monitor;
 use super::{into_io_error, Bind};
 
@@ -60,8 +58,7 @@ use super::{into_io_error, Bind};
 /// ```
 #[derive(Debug)]
 pub struct TcpListener {
-    inner: SharableEvented<mio::tcp::TcpListener>,
-    handle: EventedHandle,
+    handle: EventedHandle<mio::tcp::TcpListener>,
     monitor: Option<Monitor<(), io::Error>>,
 }
 impl TcpListener {
@@ -77,14 +74,14 @@ impl TcpListener {
 
     /// Returns the local socket address of this listener.
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.inner.with_inner_ref(|inner| inner.local_addr())
+        self.handle.inner().local_addr()
     }
 
     /// Calls `f` with the reference to the inner socket.
     pub unsafe fn with_inner<F, T>(&self, f: F) -> T
         where F: FnOnce(&mio::tcp::TcpListener) -> T
     {
-        self.inner.with_inner_ref(f)
+        f(&*self.handle.inner())
     }
 }
 
@@ -103,9 +100,8 @@ impl Future for TcpListenerBind {
     type Item = TcpListener;
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        Ok(self.0.poll()?.map(|(listener, handle)| {
+        Ok(self.0.poll()?.map(|handle| {
             TcpListener {
-                inner: listener,
                 handle: handle,
                 monitor: None,
             }
@@ -135,17 +131,16 @@ impl Stream for Incoming {
                 Ok(Async::NotReady)
             }
         } else {
-            match self.0.inner.with_inner_mut(|inner| inner.accept()) {
+            match self.0.handle.inner().accept() {
                 Ok((stream, addr)) => {
-                    let stream = SharableEvented::new(stream);
                     let register =
-                        assert_some!(fiber::with_poller(|poller| poller.register(stream.clone())));
-                    let stream = Connected(Some((stream, register)));
+                        assert_some!(fiber::with_poller(|poller| poller.register(stream)));
+                    let stream = Connected(Some(register));
                     Ok(Async::Ready(Some((stream, addr))))
                 }
                 Err(e) => {
                     if e.kind() == io::ErrorKind::WouldBlock {
-                        self.0.monitor = Some(self.0.handle.monitor(poll::Interest::Read));
+                        self.0.monitor = Some(self.0.handle.monitor(Interest::Read));
                         Ok(Async::NotReady)
                     } else {
                         Err(e)
@@ -165,16 +160,16 @@ impl Stream for Incoming {
 ///
 /// If the future is polled on the outside of a fiber, it may crash.
 #[derive(Debug)]
-pub struct Connected(Option<(SharableEvented<mio::tcp::TcpStream>, poll::Register)>);
+pub struct Connected(Option<Register<mio::tcp::TcpStream>>);
 impl Future for Connected {
     type Item = TcpStream;
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let (stream, mut future) = self.0.take().expect("Cannot poll Connected twice");
+        let mut future = self.0.take().expect("Cannot poll Connected twice");
         if let Async::Ready(handle) = future.poll().map_err(into_io_error)? {
-            Ok(Async::Ready(TcpStream::new(stream, handle)))
+            Ok(Async::Ready(TcpStream::new(handle)))
         } else {
-            self.0 = Some((stream, future));
+            self.0 = Some(future);
             Ok(Async::NotReady)
         }
     }
@@ -246,15 +241,13 @@ impl Future for Connected {
 /// ```
 #[derive(Debug)]
 pub struct TcpStream {
-    inner: SharableEvented<mio::tcp::TcpStream>,
-    handle: EventedHandle,
+    handle: EventedHandle<mio::tcp::TcpStream>,
     read_monitor: Option<Monitor<(), io::Error>>,
     write_monitor: Option<Monitor<(), io::Error>>,
 }
 impl Clone for TcpStream {
     fn clone(&self) -> Self {
         TcpStream {
-            inner: self.inner.clone(),
             handle: self.handle.clone(),
             read_monitor: None,
             write_monitor: None,
@@ -262,9 +255,8 @@ impl Clone for TcpStream {
     }
 }
 impl TcpStream {
-    fn new(inner: SharableEvented<mio::tcp::TcpStream>, handle: EventedHandle) -> Self {
+    fn new(handle: EventedHandle<mio::tcp::TcpStream>) -> Self {
         TcpStream {
-            inner: inner,
             handle: handle,
             read_monitor: None,
             write_monitor: None,
@@ -278,29 +270,29 @@ impl TcpStream {
 
     /// Returns the local socket address of this listener.
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.inner.with_inner_ref(|inner| inner.local_addr())
+        self.handle.inner().local_addr()
     }
 
     /// Returns the socket address of the remote peer of this TCP connection.
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
-        self.inner.with_inner_ref(|inner| inner.peer_addr())
+        self.handle.inner().peer_addr()
     }
 
     /// Calls `f` with the reference to the inner socket.
     pub unsafe fn with_inner<F, T>(&self, f: F) -> T
         where F: FnOnce(&mio::tcp::TcpStream) -> T
     {
-        self.inner.with_inner_ref(f)
+        f(&*self.handle.inner())
     }
 
-    fn monitor(&mut self, interest: poll::Interest) -> &mut Option<Monitor<(), io::Error>> {
-        if interest.is_read() {
+    fn monitor(&mut self, interest: Interest) -> &mut Option<Monitor<(), io::Error>> {
+        if interest == Interest::Read {
             &mut self.read_monitor
         } else {
             &mut self.write_monitor
         }
     }
-    fn operate<F, T>(&mut self, interest: poll::Interest, f: F) -> io::Result<T>
+    fn operate<F, T>(&mut self, interest: Interest, f: F) -> io::Result<T>
         where F: FnOnce(&mut mio::tcp::TcpStream) -> io::Result<T>
     {
         if let Some(mut monitor) = self.monitor(interest).take() {
@@ -311,7 +303,8 @@ impl TcpStream {
                 Err(mio::would_block())
             }
         } else {
-            self.inner.with_inner_mut(|mut inner| f(&mut *inner)).map_err(|e| {
+            let result = f(&mut *self.handle.inner());
+            result.map_err(|e| {
                 if e.kind() == io::ErrorKind::WouldBlock {
                     *self.monitor(interest) = Some(self.handle.monitor(interest));
                 }
@@ -322,15 +315,15 @@ impl TcpStream {
 }
 impl io::Read for TcpStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.operate(poll::Interest::Read, |inner| inner.read(buf))
+        self.operate(Interest::Read, |inner| inner.read(buf))
     }
 }
 impl io::Write for TcpStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.operate(poll::Interest::Write, |inner| inner.write(buf))
+        self.operate(Interest::Write, |inner| inner.write(buf))
     }
     fn flush(&mut self) -> io::Result<()> {
-        self.operate(poll::Interest::Write, |inner| inner.flush())
+        self.operate(Interest::Write, |inner| inner.flush())
     }
 }
 
@@ -355,7 +348,7 @@ impl Future for Connect {
 #[derive(Debug)]
 enum ConnectInner {
     Connect(SocketAddr),
-    Registering(SharableEvented<mio::tcp::TcpStream>, poll::Register),
+    Registering(Register<mio::tcp::TcpStream>),
     Connecting(TcpStream),
     Polled,
 }
@@ -366,18 +359,17 @@ impl Future for ConnectInner {
         match mem::replace(self, ConnectInner::Polled) {
             ConnectInner::Connect(addr) => {
                 let stream = mio::tcp::TcpStream::connect(&addr)?;
-                let stream = SharableEvented::new(stream);
                 let register =
-                    assert_some!(fiber::with_poller(|poller| poller.register(stream.clone())));
-                *self = ConnectInner::Registering(stream, register);
+                    assert_some!(fiber::with_poller(|poller| poller.register(stream)));
+                *self = ConnectInner::Registering(register);
                 self.poll()
             }
-            ConnectInner::Registering(stream, mut future) => {
+            ConnectInner::Registering(mut future) => {
                 if let Async::Ready(handle) = future.poll().map_err(into_io_error)? {
-                    *self = ConnectInner::Connecting(TcpStream::new(stream, handle));
+                    *self = ConnectInner::Connecting(TcpStream::new(handle));
                     self.poll()
                 } else {
-                    *self = ConnectInner::Registering(stream, future);
+                    *self = ConnectInner::Registering(future);
                     Ok(Async::NotReady)
                 }
             }

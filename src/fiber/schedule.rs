@@ -4,7 +4,7 @@ use std::sync::mpsc as std_mpsc;
 use std::cell::RefCell;
 use futures::{self, Future, IntoFuture};
 
-use io::poll;
+use internal::io_poll as poll;
 use fiber;
 
 lazy_static! {

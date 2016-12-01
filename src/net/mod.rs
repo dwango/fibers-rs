@@ -25,8 +25,8 @@ use futures::{Poll, Async, Future};
 pub use self::udp::UdpSocket;
 pub use self::tcp::{TcpListener, TcpStream};
 
-use io::poll::{self, SharableEvented};
 use fiber;
+use internal::io_poll::{EventedHandle, Register};
 
 pub mod futures {
     //! Implementations of `futures::Future` trait.
@@ -43,30 +43,28 @@ mod tcp;
 
 enum Bind<F, T> {
     Bind(SocketAddr, F),
-    Registering(SharableEvented<T>, poll::Register),
+    Registering(Register<T>),
     Polled,
 }
 impl<F, T> Future for Bind<F, T>
     where F: FnOnce(&SocketAddr) -> io::Result<T>,
-          T: mio::Evented + 'static
+          T: mio::Evented + Send + 'static
 {
-    type Item = (SharableEvented<T>, poll::EventedHandle);
+    type Item = EventedHandle<T>;
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match mem::replace(self, Bind::Polled) {
             Bind::Bind(addr, bind) => {
                 let socket = bind(&addr)?;
-                let socket = SharableEvented::new(socket);
-                let register =
-                    assert_some!(fiber::with_poller(|poller| poller.register(socket.clone())));
-                *self = Bind::Registering(socket, register);
+                let register = assert_some!(fiber::with_poller(|poller| poller.register(socket)));
+                *self = Bind::Registering(register);
                 self.poll()
             }
-            Bind::Registering(socket, mut future) => {
+            Bind::Registering(mut future) => {
                 if let Async::Ready(handle) = future.poll().map_err(into_io_error)? {
-                    Ok(Async::Ready((socket, handle)))
+                    Ok(Async::Ready(handle))
                 } else {
-                    *self = Bind::Registering(socket, future);
+                    *self = Bind::Registering(future);
                     Ok(Async::NotReady)
                 }
             }
@@ -78,7 +76,7 @@ impl<F, T> fmt::Debug for Bind<F, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Bind::Bind(addr, _) => write!(f, "Bind::Bind({:?}, _)", addr),
-            Bind::Registering(_, ref future) => write!(f, "Bind::Registering(_, {:?})", future),
+            Bind::Registering(_) => write!(f, "Bind::Registering(_)"),
             Bind::Polled => write!(f, "Bind::Polled"),
         }
     }

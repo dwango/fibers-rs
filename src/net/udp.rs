@@ -3,8 +3,7 @@ use std::net::SocketAddr;
 use futures::{Poll, Async, Future};
 use mio;
 
-use io::poll;
-use io::poll::{SharableEvented, EventedHandle};
+use internal::io_poll::{Interest, EventedHandle};
 use sync::oneshot::Monitor;
 use super::{into_io_error, Bind};
 
@@ -55,8 +54,7 @@ use super::{into_io_error, Bind};
 /// ```
 #[derive(Debug, Clone)]
 pub struct UdpSocket {
-    inner: SharableEvented<mio::udp::UdpSocket>,
-    handle: EventedHandle,
+    handle: EventedHandle<mio::udp::UdpSocket>,
 }
 impl UdpSocket {
     /// Makes a future to create a UDP socket binded to the given address.
@@ -85,14 +83,14 @@ impl UdpSocket {
 
     /// Returns the socket address that this socket was created from.
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.inner.with_inner_ref(|inner| inner.local_addr())
+        self.handle.inner().local_addr()
     }
 
     /// Calls `f` with the reference to the inner socket.
     pub unsafe fn with_inner<F, T>(&self, f: F) -> T
         where F: FnOnce(&mio::udp::UdpSocket) -> T
     {
-        self.inner.with_inner_ref(f)
+        f(&*self.handle.inner())
     }
 }
 
@@ -111,12 +109,7 @@ impl Future for UdpSocketBind {
     type Item = UdpSocket;
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        Ok(self.0.poll()?.map(|(listener, handle)| {
-            UdpSocket {
-                inner: listener,
-                handle: handle,
-            }
-        }))
+        Ok(self.0.poll()?.map(|handle| UdpSocket { handle: handle }))
     }
 }
 
@@ -149,13 +142,11 @@ impl<B: AsRef<[u8]>> Future for SendTo<B> {
                 }
             }
         } else {
-            let result = state.socket
-                .inner
-                .with_inner_mut(|inner| inner.send_to(state.buf.as_ref(), &state.target));
+            let result = state.socket.handle.inner().send_to(state.buf.as_ref(), &state.target);
             match result {
                 Err(e) => Err((state.socket, state.buf, e)),
                 Ok(None) => {
-                    state.monitor = Some(state.socket.handle.monitor(poll::Interest::Write));
+                    state.monitor = Some(state.socket.handle.monitor(Interest::Write));
                     self.0 = Some(state);
                     Ok(Async::NotReady)
                 }
@@ -204,13 +195,14 @@ impl<B: AsMut<[u8]>> Future for RecvFrom<B> {
         } else {
             let mut buf = state.buf;
             let result = state.socket
-                .inner
-                .with_inner_mut(|inner| inner.recv_from(buf.as_mut()));
+                .handle
+                .inner()
+                .recv_from(buf.as_mut());
             state.buf = buf;
             match result {
                 Err(e) => Err((state.socket, state.buf, e)),
                 Ok(None) => {
-                    state.monitor = Some(state.socket.handle.monitor(poll::Interest::Read));
+                    state.monitor = Some(state.socket.handle.monitor(Interest::Read));
                     self.0 = Some(state);
                     Ok(Async::NotReady)
                 }

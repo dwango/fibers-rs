@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use std::io;
 use std::fmt;
 use std::time;
@@ -11,10 +10,12 @@ use mio;
 
 use sync::oneshot;
 use internal::collections::HeapMap;
+use super::{Interest, SharableEvented, EventedLock};
 
-pub type RequestSender = std_mpsc::Sender<Request>;
-pub type RequestReceiver = std_mpsc::Receiver<Request>;
+type RequestSender = std_mpsc::Sender<Request>;
+type RequestReceiver = std_mpsc::Receiver<Request>;
 
+/// The default capacity of the event buffer of a poller.
 pub const DEFAULT_EVENTS_CAPACITY: usize = 128;
 
 struct MioEvents(mio::Events);
@@ -25,7 +26,7 @@ impl fmt::Debug for MioEvents {
 }
 
 #[derive(Debug)]
-pub struct Registrant {
+struct Registrant {
     is_first: bool,
     evented: BoxEvented,
     read_waitings: Vec<oneshot::Monitored<(), io::Error>>,
@@ -54,6 +55,7 @@ impl Registrant {
     }
 }
 
+/// I/O events poller.
 #[derive(Debug)]
 pub struct Poller {
     poll: mio::Poll,
@@ -66,9 +68,18 @@ pub struct Poller {
     timeout_queue: HeapMap<(time::Instant, usize), oneshot::Sender<()>>,
 }
 impl Poller {
+    /// Creates a new poller.
+    ///
+    /// This is equivalent to `Poller::with_capacity(DEFAULT_EVENTS_CAPACITY)`.
     pub fn new() -> io::Result<Self> {
         Self::with_capacity(DEFAULT_EVENTS_CAPACITY)
     }
+
+    /// Creates a new poller which has an event buffer of which capacity is `capacity`.
+    ///
+    /// For the detailed meaning of the `capacity` value,
+    /// please see the [mio's documentation]
+    /// (https://docs.rs/mio/0.6.1/mio/struct.Events.html#method.with_capacity).
     pub fn with_capacity(capacity: usize) -> io::Result<Self> {
         let poll = mio::Poll::new()?;
         let (tx, rx) = std_mpsc::channel();
@@ -83,16 +94,17 @@ impl Poller {
             timeout_queue: HeapMap::new(),
         })
     }
-    pub fn registrant_count(&self) -> usize {
-        self.registrants.len()
+
+    /// Makes a future to register new evented object to the poller.
+    pub fn register<E>(&mut self, evented: E) -> Register<E>
+        where E: mio::Evented + Send + 'static
+    {
+        self.handle().register(evented)
     }
-    pub fn handle(&self) -> PollerHandle {
-        PollerHandle {
-            request_tx: self.request_tx.clone(),
-            next_timeout_id: self.next_timeout_id.clone(),
-            is_alive: true,
-        }
-    }
+
+    /// Blocks the current thread and wait until any events happen or `timeout` expires.
+    ///
+    /// On the former case, the poller notifies the fibers waiting on those events.
     pub fn poll(&mut self, timeout: Option<time::Duration>) -> io::Result<()> {
         let mut did_something = false;
 
@@ -140,12 +152,22 @@ impl Poller {
 
         Ok(())
     }
+
+    /// Makes a handle of the poller.
+    pub fn handle(&self) -> PollerHandle {
+        PollerHandle {
+            request_tx: self.request_tx.clone(),
+            next_timeout_id: self.next_timeout_id.clone(),
+            is_alive: true,
+        }
+    }
+
     fn handle_request(&mut self, request: Request) -> io::Result<()> {
         match request {
-            Request::Register(evented, reply) => {
+            Request::Register(evented, mut reply) => {
                 let token = self.next_token();
                 self.registrants.insert(token, Registrant::new(evented));
-                let _ = reply.send(EventedHandle::new(self.request_tx.clone(), token));
+                (reply.0)(token);
             }
             Request::Deregister(token) => {
                 let r = assert_some!(self.registrants.remove(&token));
@@ -197,6 +219,7 @@ impl Poller {
     }
 }
 
+/// A handle of a poller.
 #[derive(Debug, Clone)]
 pub struct PollerHandle {
     request_tx: RequestSender,
@@ -204,20 +227,31 @@ pub struct PollerHandle {
     is_alive: bool,
 }
 impl PollerHandle {
+    /// Returns `true` if the original poller maybe alive, otherwise `false`.
     pub fn is_alive(&self) -> bool {
         self.is_alive
     }
-    pub fn register<E>(&mut self, evented: E) -> Register
+
+    /// Makes a future to register new evented object to the poller.
+    pub fn register<E>(&mut self, evented: E) -> Register<E>
         where E: mio::Evented + Send + 'static
     {
-        let evented = BoxEvented(Box::new(evented));
+        let evented = SharableEvented::new(evented);
+        let box_evented = BoxEvented(Box::new(evented.clone()));
+        let request_tx = self.request_tx.clone();
         let (tx, rx) = oneshot::channel();
-        if self.request_tx.send(Request::Register(evented, tx)).is_err() {
+        let mut reply = Some(move |token| {
+            let handle = EventedHandle::new(evented, request_tx, token);
+            let _ = tx.send(handle);
+        });
+        let reply = RegisterReplyFn(Box::new(move |token| (reply.take().unwrap())(token)));
+        if self.request_tx.send(Request::Register(box_evented, reply)).is_err() {
             self.is_alive = false;
         }
         Register { rx: rx }
     }
-    pub fn set_timeout(&mut self, delay_from_now: time::Duration) -> Timeout {
+
+    fn set_timeout(&mut self, delay_from_now: time::Duration) -> Timeout {
         let (tx, rx) = oneshot::channel();
         let expiry_time = time::Instant::now() + delay_from_now;
         let timeout_id = self.next_timeout_id.fetch_add(1, atomic::Ordering::SeqCst);
@@ -232,6 +266,10 @@ impl PollerHandle {
             rx: rx,
         }
     }
+}
+
+pub fn set_timeout(poller: &mut PollerHandle, delay_from_now: time::Duration) -> Timeout {
+    poller.set_timeout(delay_from_now)
 }
 
 #[derive(Debug)]
@@ -275,49 +313,64 @@ impl Drop for Timeout {
     }
 }
 
+/// A future which will register a new evented object to a poller.
 #[derive(Debug)]
-pub struct Register {
-    rx: oneshot::Receiver<EventedHandle>,
+pub struct Register<T> {
+    rx: oneshot::Receiver<EventedHandle<T>>,
 }
-impl Future for Register {
-    type Item = EventedHandle;
+impl<T> Future for Register<T> {
+    type Item = EventedHandle<T>;
     type Error = std_mpsc::RecvError;
     fn poll(&mut self) -> futures::Poll<Self::Item, Self::Error> {
         self.rx.poll()
     }
 }
 
+/// The handle of an evented object which has been registered in a poller.
+///
+/// When all copy of this handle are dropped,
+/// the corresponding entry in the poller is deregistered.
 #[derive(Debug)]
-pub struct EventedHandle {
+pub struct EventedHandle<T> {
     token: mio::Token,
     request_tx: RequestSender,
     shared_count: Arc<AtomicUsize>,
+    inner: SharableEvented<T>,
 }
-impl EventedHandle {
-    pub fn new(request_tx: RequestSender, token: mio::Token) -> Self {
+impl<T: mio::Evented> EventedHandle<T> {
+    fn new(inner: SharableEvented<T>, request_tx: RequestSender, token: mio::Token) -> Self {
         EventedHandle {
             token: token,
             request_tx: request_tx,
             shared_count: Arc::new(AtomicUsize::new(1)),
+            inner: inner,
         }
     }
+
+    /// Monitors occurrence of an event specified by `interest`.
     pub fn monitor(&self, interest: Interest) -> oneshot::Monitor<(), io::Error> {
         let (monitored, monitor) = oneshot::monitor();
         let _ = self.request_tx.send(Request::Monitor(self.token, interest, monitored));
         monitor
     }
+
+    /// Returns the locked reference to the inner evented object.
+    pub fn inner(&self) -> EventedLock<T> {
+        self.inner.lock()
+    }
 }
-impl Clone for EventedHandle {
+impl<T> Clone for EventedHandle<T> {
     fn clone(&self) -> Self {
         self.shared_count.fetch_add(1, atomic::Ordering::SeqCst);
         EventedHandle {
             token: self.token.clone(),
             request_tx: self.request_tx.clone(),
             shared_count: self.shared_count.clone(),
+            inner: self.inner.clone(),
         }
     }
 }
-impl Drop for EventedHandle {
+impl<T> Drop for EventedHandle<T> {
     fn drop(&mut self) {
         if 1 == self.shared_count.fetch_sub(1, atomic::Ordering::SeqCst) {
             let _ = self.request_tx.send(Request::Deregister(self.token));
@@ -325,30 +378,23 @@ impl Drop for EventedHandle {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Interest {
-    Read,
-    Write,
-}
-impl Interest {
-    pub fn is_read(&self) -> bool {
-        *self == Interest::Read
-    }
-    pub fn is_write(&self) -> bool {
-        *self == Interest::Write
-    }
-}
-
-pub struct BoxEvented(Box<mio::Evented + Send + 'static>);
+struct BoxEvented(Box<mio::Evented + Send + 'static>);
 impl fmt::Debug for BoxEvented {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "BoxEvented(_)")
     }
 }
 
+struct RegisterReplyFn(Box<FnMut(mio::Token) + Send + 'static>);
+impl fmt::Debug for RegisterReplyFn {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "RegisterReplyFn(_)")
+    }
+}
+
 #[derive(Debug)]
-pub enum Request {
-    Register(BoxEvented, oneshot::Sender<EventedHandle>),
+enum Request {
+    Register(BoxEvented, RegisterReplyFn),
     Deregister(mio::Token),
     Monitor(mio::Token, Interest, oneshot::Monitored<(), io::Error>),
     SetTimeout(usize, time::Instant, oneshot::Sender<()>),

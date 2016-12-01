@@ -3,7 +3,6 @@ use std::time;
 use std::thread;
 use std::sync::{Arc, Mutex};
 use rand;
-use num_cpus;
 use futures::{Async, Future};
 
 use io::poll;
@@ -16,9 +15,6 @@ pub struct PollerPool {
     pollers: Arc<Mutex<Vec<PollerHandle>>>,
 }
 impl PollerPool {
-    pub fn new() -> io::Result<Self> {
-        Self::with_thread_count(num_cpus::get())
-    }
     pub fn with_thread_count(count: usize) -> io::Result<Self> {
         assert!(count > 0);
         let mut links = Vec::new();

@@ -1,14 +1,15 @@
 use std::io;
+use std::ops;
 use std::sync::Arc;
 use mio;
 
 pub use self::poller::{Poller, PollerHandle, Timeout, EventedHandle};
-pub use self::poller::{Register, Interest};
+pub use self::poller::Register;
 pub use self::pool::{PollerPool, PollerPoolHandle};
 
-use internal::sync_atomic::AtomicCell;
+use internal::sync_atomic::{AtomicCell, AtomicBorrowMut};
 
-mod poller;
+pub mod poller;
 mod pool;
 
 #[derive(Debug)]
@@ -19,23 +20,11 @@ impl<T> SharableEvented<T>
     pub fn new(inner: T) -> Self {
         SharableEvented(Arc::new(AtomicCell::new(inner)))
     }
-    pub fn with_inner_mut<F, U>(&self, f: F) -> U
-        where F: FnOnce(&mut T) -> U
-    {
-        loop {
-            // TODO: NOTE: We assumes conflictions are very rare so ...
-            if let Some(mut inner) = self.0.try_borrow_mut() {
-                return f(&mut *inner);
-            }
-        }
-    }
-    pub fn with_inner_ref<F, U>(&self, f: F) -> U
-        where F: FnOnce(&T) -> U
-    {
+    pub fn lock(&self) -> EventedLock<T> {
         loop {
             // TODO: NOTE: We assumes conflictions are very rare so ...
             if let Some(inner) = self.0.try_borrow_mut() {
-                return f(&*inner);
+                return EventedLock(inner);
             }
         }
     }
@@ -54,7 +43,7 @@ impl<T> mio::Evented for SharableEvented<T>
                 interest: mio::Ready,
                 opts: mio::PollOpt)
                 -> io::Result<()> {
-        self.with_inner_ref(|inner| inner.register(poll, token, interest, opts))
+        self.lock().register(poll, token, interest, opts)
     }
     fn reregister(&self,
                   poll: &mio::Poll,
@@ -62,9 +51,33 @@ impl<T> mio::Evented for SharableEvented<T>
                   interest: mio::Ready,
                   opts: mio::PollOpt)
                   -> io::Result<()> {
-        self.with_inner_ref(|inner| inner.reregister(poll, token, interest, opts))
+        self.lock().reregister(poll, token, interest, opts)
     }
     fn deregister(&self, poll: &mio::Poll) -> io::Result<()> {
-        self.with_inner_ref(|inner| inner.deregister(poll))
+        self.lock().deregister(poll)
     }
+}
+
+/// The locked reference to an evented object.
+pub struct EventedLock<'a, T: 'a>(AtomicBorrowMut<'a, T>);
+impl<'a, T: 'a> ops::Deref for EventedLock<'a, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &*self.0
+    }
+}
+impl<'a, T: 'a> ops::DerefMut for EventedLock<'a, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut *self.0
+    }
+}
+
+/// The list of the monitorable event kinds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Interest {
+    /// Read readiness event
+    Read,
+
+    /// Write readiness event
+    Write,
 }
