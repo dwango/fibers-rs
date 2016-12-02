@@ -107,6 +107,11 @@ client(read from standard input ...):
 ```rust
 ```
 
----
+License
+-------
+
+This library is released under the MIT License.
+
+See the [LICENSE](LICENSE) file for full license information.
 
 Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
