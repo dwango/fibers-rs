@@ -9,14 +9,17 @@ This is a library to execute a number of lightweight asynchronous tasks (a.k.a, 
 [Documentation](https://docs.rs/fibers/)
 
 Note that `fibers` heavily uses [futures](https://github.com/alexcrichton/futures-rs) to
-represent asynchronous task.
-If you are not familiar with [futures](https://github.com/alexcrichton/futures-rs),
+represent asynchronous task. If you are not familiar with it,
 we recommend that you refer the `README.md` and `TUTORIAL.md` of [futures](https://github.com/alexcrichton/futures-rs)
 before reading the following.
 
+This library also uses [mio](https://github.com/carllerche/mio) to achieve
+efficient asynchronous I/O handling (mainly for networking primitives).
+However, its existence is hidden from the user, so you do not usually have to worry about it.
+
+---
 
 A fiber is a future which executed by ... .
-(expect users familliar with the futures)
 (mio is hidden and no prerequirement)
 
 futures is gread ... . but a remaiing problems is
