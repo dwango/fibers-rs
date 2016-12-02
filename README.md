@@ -60,7 +60,7 @@ Examples
 ### Calculation of fibonacci numbers
 
 ```rust
-// NOTE: An running example is found in examples/...
+// See also: "fibers/examples/fibonacci.rs"
 extern crate fibers;
 extern crate futures;
 

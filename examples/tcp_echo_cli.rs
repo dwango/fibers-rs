@@ -13,7 +13,7 @@ use handy_io::io::{AsyncWrite, AsyncRead};
 use handy_io::pattern::{Pattern, AllowPartial};
 
 fn main() {
-    let matches = App::new("echo_cli")
+    let matches = App::new("tcp_echo_cli")
         .arg(Arg::with_name("SERVER_HOST")
             .short("h")
             .takes_value(true)
@@ -32,16 +32,15 @@ fn main() {
     let monitor =
         executor.spawn_monitor(fibers::net::TcpStream::connect(addr).and_then(move |stream| {
             println!("# CONNECTED: {}", addr);
-            let (r, w) = (stream.clone(), stream);
+            let (reader, writer) = (stream.clone(), stream);
 
             // writer
             let stdin_stream = fibers::io::stdin()
                 .async_read_stream(vec![0; 1024].allow_partial().repeat());
             handle.spawn(stdin_stream.map_err(|(_, e)| e)
-                .fold(w, |w, (mut buf, size)| {
+                .fold(writer, |writer, (mut buf, size)| {
                     buf.truncate(size);
-                    println!("# SEND: {} bytes", buf.len());
-                    w.async_write_all(buf).map(|(w, _)| w).map_err(|(_, _, e)| e)
+                    writer.async_write_all(buf).map(|(w, _)| w).map_err(|(_, _, e)| e)
                 })
                 .then(|r| {
                     println!("# Writer finished: {:?}", r);
@@ -50,10 +49,9 @@ fn main() {
 
             // reader
             let stream = vec![0; 1024].allow_partial().repeat();
-            r.async_read_stream(stream)
+            reader.async_read_stream(stream)
                 .map_err(|(_, e)| e)
                 .for_each(|(mut buf, len)| {
-                    println!("# RECV: {} bytes", len);
                     buf.truncate(len);
                     println!("{}", String::from_utf8(buf).expect("Invalid UTF-8"));
                     Ok(())

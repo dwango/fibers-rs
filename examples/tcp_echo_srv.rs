@@ -14,7 +14,7 @@ use handy_io::io::{AsyncWrite, AsyncRead};
 use handy_io::pattern::{Pattern, AllowPartial};
 
 fn main() {
-    let matches = App::new("echo_srv")
+    let matches = App::new("tcp_echo_srv")
         .arg(Arg::with_name("PORT")
             .short("p")
             .takes_value(true)
@@ -23,23 +23,23 @@ fn main() {
     let port = matches.value_of("PORT").unwrap();
     let addr = format!("0.0.0.0:{}", port).parse().expect("Invalid TCP bind address");
 
-    let executor = ThreadPoolExecutor::new().expect("Cannot create Executor");
+    let mut executor = ThreadPoolExecutor::new().expect("Cannot create Executor");
     let handle0 = executor.handle();
-    executor.spawn(fibers::net::TcpListener::bind(addr)
-        .and_then(move |listener| {
+    let monitor =
+        executor.spawn_monitor(fibers::net::TcpListener::bind(addr).and_then(move |listener| {
             println!("# Start listening: {}: ", addr);
             listener.incoming().for_each(move |(client, addr)| {
                 println!("# CONNECTED: {}", addr);
                 let handle1 = handle0.clone();
                 handle0.spawn(client.and_then(move |client| {
-                        let (r, w) = (client.clone(), client);
+                        let (reader, writer) = (client.clone(), client);
                         let (tx, rx) = fibers::sync::mpsc::channel();
 
                         // writer
                         handle1.spawn(rx.map_err(|_| -> io::Error { unreachable!() })
-                            .fold(w, |w, buf: Vec<u8>| {
+                            .fold(writer, |writer, buf: Vec<u8>| {
                                 println!("# SEND: {} bytes", buf.len());
-                                w.async_write_all(buf).map(|(w, _)| w).map_err(|(_, _, e)| e)
+                                writer.async_write_all(buf).map(|(w, _)| w).map_err(|(_, _, e)| e)
                             })
                             .then(|r| {
                                 println!("# Writer finished: {:?}", r);
@@ -48,7 +48,7 @@ fn main() {
 
                         // reader
                         let stream = vec![0;1024].allow_partial().repeat();
-                        r.async_read_stream(stream)
+                        reader.async_read_stream(stream)
                             .map_err(|(_, e)| e)
                             .fold(tx, |tx, (mut buf, len)| {
                                 buf.truncate(len);
@@ -63,10 +63,7 @@ fn main() {
                     }));
                 Ok(())
             })
-        })
-        .then(|r| {
-            println!("# Listener finished: {:?}", r);
-            Ok(())
         }));
-    executor.run().expect("Execution failed");
+    let result = executor.run_fiber(monitor).expect("Execution failed");
+    println!("# Listener finished: {:?}", result);
 }
