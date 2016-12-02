@@ -34,7 +34,7 @@ And there is an executor that takes futures and executes them like following.
 // Creates an executor.
 let mut executor = ThreadPoolExecutor::new().unwrap();
 
-// Spanws fibers
+// Spanws fibers (i.e., passes futures to the executor).
 executor.spawn(lazy(|| { println!("Hello"); Ok(())} ));
 executor.spawn(lazy(|| { println!("World!"); Ok(())} ));
 
@@ -43,18 +43,24 @@ executor.run().unwrap();
 ```
 
 Fibers may be run on different background threads, but the user does not need to notice it.
+If it runs on machines with a large number of processors, performance will improve naturally.
 
-Roughly speaking, ... If a future returns `Async::NotReady` ...
+Roughly speaking, if a future returns `Async::NotReady` response to a call of `Future::poll` method,
+the fiber associated with the future will move into the "waiting" state.
+Then, it is suspended (descheduled) until any event in which the future is interested happens
+(e.g., waits until data is arrived on a target TCP socket).
+Finally, if a future returns `Async::Ready` response, the fiber will be regarded as completed and
+the executor will drop the fiber.
 
 This library provides primitives for writing programs in an efficient
-asynchronous fashion.
-E.g., [net](https://docs.rs/fibers/0.1/fibers/net/index.html), [sync](https://docs.rs/fibers/0.1/fibers/sync/index.html),
-[io](https://docs.rs/fibers/0.1/fibers/io/index.html), [time](https://docs.rs/fibers/0.1/fibers/time/index.html).
-
+asynchronous fashion (See documentations of [net](https://docs.rs/fibers/0.1/fibers/net/index.html),
+[sync](https://docs.rs/fibers/0.1/fibers/sync/index.html), [io](https://docs.rs/fibers/0.1/fibers/io/index.html),
+[time](https://docs.rs/fibers/0.1/fibers/time/index.html) modules for more details).
 
 and main concern of this library is "how execute and schedule the fibers(futures)".
 and it is recommened to use other crate like handy_io.
 (those are minimum set ...)
+
 
 Installation
 ------------
