@@ -50,12 +50,20 @@ extern crate fibers;
 extern crate futures;
 ```
 
-See following examples for ... .
-And examples directory in ... also has some ... .
+Several runnable examples are given in the next section.
 
 
 Examples
 --------
+
+The following are examples of writing code to perform asynchronous tasks.
+
+Other examples are found in "fibers/examples" directory.
+And you can run an example by executing the following command.
+
+```bash
+$ cargo run --example ${EXAMPLE_NAME}
+```
 
 ### Calculation of fibonacci numbers
 
@@ -180,7 +188,7 @@ extern crate fibers;
 extern crate futures;
 extern crate handy_io;
 
-use fibers::{Spawn, Executor, ThreadPoolExecutor};
+use fibers::{Spawn, Executor, InPlaceExecutor};
 use fibers::net::TcpStream;
 use futures::{Future, Stream};
 use handy_io::io::{AsyncWrite, AsyncRead};
@@ -189,7 +197,10 @@ use handy_io::pattern::{Pattern, AllowPartial};
 fn main() {
     let server_addr = "127.0.0.1:3000".parse().unwrap();
 
-    let mut executor = ThreadPoolExecutor::new().expect("Cannot create Executor");
+    // `InPlaceExecutor` is suitable to execute a few fibers.
+    // It does not create any background threads,
+    // so the overhead to manage fibers is lower than `ThreadPoolExecutor`.
+    let mut executor = InPlaceExecutor::new().expect("Cannot create Executor");
     let handle = executor.handle();
 
     // Spawns a fiber for echo client.
@@ -224,13 +235,6 @@ fn main() {
     let result = executor.run_fiber(monitor).expect("Execution failed");
     println!("# Disconnected: {:?}", result);
 }
-```
-
-Other examples are found in "fibers/examples" directory.
-And you can run an example by executing the following command.
-
-```bash
-$ cargo run --example ${EXAMPLE_NAME}
 ```
 
 License
