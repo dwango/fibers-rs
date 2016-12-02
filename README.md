@@ -22,15 +22,29 @@ However, its existence is hidden from the user, so you do not usually have to wo
 `Future` is an excellent way to represent asynchronous task.
 It is intuitive, easily composed with other futures to represent a complicated task,
 without runtime overhead.
-
 But, there is a remaining problem that
 "How to efficiently execute (possibility a very large amount of) concurrent tasks?".
 `fibers` is an answer to the problem.
 
+Conceptually, the responsibility of `fibers` is very simple.
+It represents an asynchronous task (a.k.a., fiber) as a future instance.
+And there is an executor that takes futures and executes them like following.
+
+```rust
+// Creates an executor.
+let mut executor = ThreadPoolExecutor::new().unwrap();
+
+// Spanws fibers
+executor.spawn(lazy(|| { println!("Hello"); Ok(())} ));
+executor.spawn(lazy(|| { println!("World!"); Ok(())} ));
+
+// Executes them.
+executor.run().unwrap();
+```
+
+
 
 A fiber is a future.
-
-remaining probrem of a future is ... , ant fibers is an answer about it.
 
 responsibility of fibers is conceptually versy simple.
 it is passed a future and exeute it.
