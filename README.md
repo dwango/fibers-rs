@@ -42,44 +42,19 @@ executor.spawn(lazy(|| { println!("World!"); Ok(())} ));
 executor.run().unwrap();
 ```
 
+Fibers may be run on different background threads, but the user does not need to notice it.
 
+Roughly speaking, ... If a future returns `Async::NotReady` ...
 
-A fiber is a future.
+This library provides primitives for writing programs in an efficient
+asynchronous fashion.
+E.g., [net](https://docs.rs/fibers/0.1/fibers/net/index.html), [sync](https://docs.rs/fibers/0.1/fibers/sync/index.html),
+[io](https://docs.rs/fibers/0.1/fibers/io/index.html), [time](https://docs.rs/fibers/0.1/fibers/time/index.html).
 
-responsibility of fibers is conceptually versy simple.
-it is passed a future and exeute it.
-
-multithread, core transparent, scalable.
-
-asynchronous primitives e.g., ...
-
-main concern of this libary is ... , and it is preferred.
-
----
-
-A fiber is a future which executed by ... .
-
-futures is gread ... . but a remaiing problems is
-"how exeuted the futures efficiently (and especially) with asynchronous I/O ?"
-
-fiber is an answer about it.
-
-erlang like, green thread, ....
-
-intuitive, can use like ordinay threads(?).
 
 and main concern of this library is "how execute and schedule the fibers(futures)".
 and it is recommened to use other crate like handy_io.
-
-asynchronous i/o and other asynchronous primitives.
-
-multithread support ... . thread transparent
-(for example future and i/o primitive free to moves between fibers) .
-
-privides primitives ...
-
-intuitive and easy to use.
-
+(those are minimum set ...)
 
 Installation
 ------------
