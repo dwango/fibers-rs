@@ -2,7 +2,7 @@
 name = "fibers"
 version = "0.1.0"
 authors = ["Takeru Ohta <takeru_ohta@dwango.co.jp>"]
-description = "TODO"
+description = "A Rust library to execute a number of lightweight asynchronous tasks (a.k.a, fibers) based on futures and mio"
 documentation = "https://docs.rs/crate/fibers"
 homepage = "https://github.com/dwango/fibers-rs"
 repository = "https://github.com/dwango/fibers-rs"
