@@ -4,9 +4,15 @@ fibers
 [![fibers](http://meritbadge.herokuapp.com/fibers)](https://crates.io/crates/fibers)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-`fibers` is a library to execute ... .
-
 [Documentation](https://docs.rs/fibers/)
+
+This is a library to execute a number of lightweight asynchronous tasks (a.k.a, fibers).
+
+Note that `fibers` heavily uses [futures](https://github.com/alexcrichton/futures-rs) to
+represent asynchronous task.
+So it is recommended to see the `README.md` and `TUTORIAL.md` of
+[futures](https://github.com/alexcrichton/futures-rs) before reading following
+if you are unfamiliar with it.
 
 A fiber is a future which executed by ... .
 (expect users familliar with the futures)
