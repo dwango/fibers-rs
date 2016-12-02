@@ -172,9 +172,58 @@ fn main() {
 }
 ```
 
-client(read from standard input ...):
+And the code of the client side:
 
 ```rust
+// See also: "fibers/examples/tcp_echo_cli.rs"
+extern crate fibers;
+extern crate futures;
+extern crate handy_io;
+
+use fibers::{Spawn, Executor, ThreadPoolExecutor};
+use fibers::net::TcpStream;
+use futures::{Future, Stream};
+use handy_io::io::{AsyncWrite, AsyncRead};
+use handy_io::pattern::{Pattern, AllowPartial};
+
+fn main() {
+    let server_addr = "127.0.0.1:3000".parse().unwrap();
+
+    let mut executor = ThreadPoolExecutor::new().expect("Cannot create Executor");
+    let handle = executor.handle();
+
+    // Spawns a fiber for echo client.
+    let monitor = executor.spawn_monitor(TcpStream::connect(addr).and_then(move |stream| {
+        println!("# CONNECTED: {}", addr);
+        let (reader, writer) = (stream.clone(), stream);
+
+        // Writer: It sends data read from the standard input stream to the connected server.
+        let stdin_stream = fibers::io::stdin()
+            .async_read_stream(vec![0; 256].allow_partial().repeat());
+        handle.spawn(stdin_stream.map_err(|(_, e)| e)
+            .fold(writer, |writer, (mut buf, size)| {
+                buf.truncate(size);
+                writer.async_write_all(buf).map(|(w, _)| w).map_err(|(_, _, e)| e)
+            })
+            .then(|r| {
+                println!("# Writer finished: {:?}", r);
+                Ok(())
+            }));
+
+        // Reader: It outputs data received from the server to the standard output stream.
+        reader.async_read_stream(vec![0; 256].allow_partial().repeat())
+            .map_err(|(_, e)| e)
+            .for_each(|(mut buf, len)| {
+                buf.truncate(len);
+                println!("{}", String::from_utf8(buf).expect("Invalid UTF-8"));
+                Ok(())
+            })
+    }));
+
+    // Runs until the above fiber is terminated (i.e., The TCP stream is disconnected).
+    let result = executor.run_fiber(monitor).expect("Execution failed");
+    println!("# Disconnected: {:?}", result);
+}
 ```
 
 License
