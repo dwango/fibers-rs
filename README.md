@@ -40,7 +40,7 @@ First, add following lines to your `Cargo.toml`:
 ```toml
 [dependencies]
 fibers = "0.1"
-futures = "0.1"
+futures = "0.1"  # In practical, `futures` is mandatory to use `fibers`.
 ```
 
 Next, add this to your crate:
@@ -230,7 +230,7 @@ Other examples are found in "fibers/examples" directory.
 And you can run an example by executing the following command.
 
 ```bash
-$ cargo run --example ${EXAMPLE_NAME} command.
+$ cargo run --example ${EXAMPLE_NAME}
 ```
 
 License
