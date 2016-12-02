@@ -57,9 +57,9 @@ asynchronous fashion (See documentations of [net](https://docs.rs/fibers/0.1/fib
 [sync](https://docs.rs/fibers/0.1/fibers/sync/index.html), [io](https://docs.rs/fibers/0.1/fibers/io/index.html),
 [time](https://docs.rs/fibers/0.1/fibers/time/index.html) modules for more details).
 
-and main concern of this library is "how execute and schedule the fibers(futures)".
-and it is recommened to use other crate like handy_io.
-(those are minimum set ...)
+The main concern of this library is "how to execute fibers".
+So it is preferred to use external crates (e.g., [handy_io](https://github.com/sile/handy_io))
+to describe "how to represent asynchronous tasks".
 
 
 Installation
