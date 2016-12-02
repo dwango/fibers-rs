@@ -35,8 +35,8 @@ And there is an executor that takes futures and executes them like following.
 let mut executor = ThreadPoolExecutor::new().unwrap();
 
 // Spanws fibers (i.e., passes futures to the executor).
-executor.spawn(lazy(|| { println!("Hello"); Ok(())} ));
-executor.spawn(lazy(|| { println!("World!"); Ok(())} ));
+executor.spawn(futures::lazy(|| { println!("Hello"); Ok(())} ));
+executor.spawn(futures::lazy(|| { println!("World!"); Ok(())} ));
 
 // Executes them.
 executor.run().unwrap();
