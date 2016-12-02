@@ -1,23 +1,41 @@
-use std::fmt;
+// Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
+// See the LICENSE file at the top-level directory of this distribution.
+
+//! Fiber related components (for developers).
+//!
+//! Those are mainly exported for developers.
+//! So, usual users do not need to be conscious.
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicUsize};
 use futures::{self, Async, Future, BoxFuture, IntoFuture};
 
-pub use self::schedule::{Scheduler, SchedulerHandle};
+pub use self::schedule::{Scheduler, SchedulerHandle, SchedulerId};
+pub use self::schedule::{with_current_context, Context};
 
-use io::poll;
 use sync::oneshot::{self, Monitor};
+use internal::fiber::Task;
 
 mod schedule;
 
+/// The identifier of a fiber.
+///
+/// The value is unique among the live fibers in a scheduler.
 pub type FiberId = usize;
 
-pub type FiberFuture = BoxFuture<(), ()>;
+/// The identifier of an execution context.
+pub type ContextId = (SchedulerId, FiberId);
 
 /// The `Spawn` trait allows for spawning fibers.
 pub trait Spawn {
+    /// Spawns a fiber which will execute given boxed future.
+    fn spawn_boxed(&self, fiber: BoxFuture<(), ()>);
+
     /// Spawns a fiber which will execute given future.
-    fn spawn<F>(&self, future: F) where F: Future<Item = (), Error = ()> + Send + 'static;
+    fn spawn<F>(&self, fiber: F)
+        where F: Future<Item = (), Error = ()> + Send + 'static
+    {
+        self.spawn_boxed(fiber.boxed());
+    }
 
     /// Equivalent to `self.spawn(futures::lazy(|| f()))`.
     fn spawn_fn<F, T>(&self, f: F)
@@ -40,15 +58,8 @@ pub trait Spawn {
     }
 }
 
-pub struct Task(pub FiberFuture);
-impl fmt::Debug for Task {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Task(_)")
-    }
-}
-
 #[derive(Debug)]
-pub struct FiberState {
+struct FiberState {
     pub fiber_id: FiberId,
     task: Task,
     parks: usize,
@@ -95,28 +106,11 @@ impl FiberState {
     }
 }
 
-pub fn park() -> Option<Unpark> {
-    schedule::Context::with_current_mut(|context| {
-        context.scheduler.as_ref().and_then(|scheduler| {
-            context.fiber_mut().map(|fiber| fiber.park(scheduler.id, scheduler.handle.clone()))
-        })
-    })
-}
-pub fn context_id() -> Option<(schedule::SchedulerId, FiberId)> {
-    schedule::Context::with_current_ref(|context| {
-        context.scheduler
-            .as_ref()
-            .and_then(|scheduler| context.fiber_mut().map(|fiber| (scheduler.id, fiber.fiber_id)))
-    })
-}
-pub fn with_poller<F, T>(f: F) -> Option<T>
-    where F: FnOnce(&mut poll::PollerHandle) -> T
-{
-    schedule::Context::with_current_mut(|context| {
-        context.scheduler.as_mut().map(|s| f(&mut s.poller))
-    })
-}
-
+/// Unpark object.
+///
+/// When this object is dropped, it unparks the associated fiber.
+///
+/// This is created by calling `Context::park` method.
 #[derive(Debug)]
 pub struct Unpark {
     fiber_id: FiberId,
@@ -125,7 +119,8 @@ pub struct Unpark {
     scheduler: schedule::SchedulerHandle,
 }
 impl Unpark {
-    pub fn context_id(&self) -> (schedule::SchedulerId, FiberId) {
+    /// Returns the identifier of the context on which this object was created.
+    pub fn context_id(&self) -> ContextId {
         (self.scheduler_id, self.fiber_id)
     }
 }

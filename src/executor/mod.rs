@@ -1,3 +1,6 @@
+// Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
+// See the LICENSE file at the top-level directory of this distribution.
+
 //! The `Executor` trait and its implementations.
 use std::io;
 use futures::{Async, Future, IntoFuture};

@@ -1,3 +1,6 @@
+// Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
+// See the LICENSE file at the top-level directory of this distribution.
+
 use std::io;
 use std::ops;
 use std::sync::Arc;
@@ -20,7 +23,8 @@ impl<T> SharableEvented<T>
     }
     pub fn lock(&self) -> EventedLock<T> {
         loop {
-            // TODO: NOTE: We assumes conflictions are very rare so ...
+            // NOTE: We assumes conflictions are very rare.
+            // (But should be refined in future releases)
             if let Some(inner) = self.0.try_borrow_mut() {
                 return EventedLock(inner);
             }

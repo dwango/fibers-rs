@@ -1,3 +1,6 @@
+// Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
+// See the LICENSE file at the top-level directory of this distribution.
+
 //! Networking primitives for TCP/UDP communication.
 //!
 //! # Implementation Details
@@ -56,7 +59,8 @@ impl<F, T> Future for Bind<F, T>
         match mem::replace(self, Bind::Polled) {
             Bind::Bind(addr, bind) => {
                 let socket = bind(&addr)?;
-                let register = assert_some!(fiber::with_poller(|poller| poller.register(socket)));
+                let register =
+                    assert_some!(fiber::with_current_context(|mut c| c.poller().register(socket)));
                 *self = Bind::Registering(register);
                 self.poll()
             }

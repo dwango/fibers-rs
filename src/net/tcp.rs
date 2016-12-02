@@ -1,3 +1,6 @@
+// Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
+// See the LICENSE file at the top-level directory of this distribution.
+
 use std::io;
 use std::mem;
 use std::net::SocketAddr;
@@ -134,7 +137,7 @@ impl Stream for Incoming {
             match self.0.handle.inner().accept() {
                 Ok((stream, addr)) => {
                     let register =
-                        assert_some!(fiber::with_poller(|poller| poller.register(stream)));
+                        assert_some!(fiber::with_current_context(|mut c| c.poller().register(stream)));
                     let stream = Connected(Some(register));
                     Ok(Async::Ready(Some((stream, addr))))
                 }
@@ -360,7 +363,7 @@ impl Future for ConnectInner {
             ConnectInner::Connect(addr) => {
                 let stream = mio::tcp::TcpStream::connect(&addr)?;
                 let register =
-                    assert_some!(fiber::with_poller(|poller| poller.register(stream)));
+                    assert_some!(fiber::with_current_context(|mut c| c.poller().register(stream)));
                 *self = ConnectInner::Registering(register);
                 self.poll()
             }

@@ -1,29 +1,81 @@
+// Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
+// See the LICENSE file at the top-level directory of this distribution.
+
 use std::io;
 use std::time;
 use std::thread;
 use std::sync::mpsc as std_mpsc;
 use num_cpus;
-use futures::{Async, Future};
+use futures::{Async, Future, BoxFuture};
 
 use fiber::{self, Spawn};
 use io::poll;
 use sync::oneshot::{self, Link};
+use internal::fiber::Task;
 use super::Executor;
 
-/// Current implmentation is very naive ...
+/// An executor that executes spawned fibers on pooled threads.
+///
+/// # Examples
+///
+/// An example to calculate fibonacci numbers:
+///
+/// ```
+/// # extern crate fibers;
+/// # extern crate futures;
+/// use fibers::{Spawn, Executor, ThreadPoolExecutor};
+/// use futures::{Async, Future, BoxFuture};
+///
+/// fn fib<H: Spawn + Clone>(n: usize, handle: H) -> BoxFuture<usize, ()> {
+///     if n < 2 {
+///         futures::finished(n).boxed()
+///     } else {
+///         let f0 = handle.spawn_monitor(fib(n - 1, handle.clone()));
+///         let f1 = handle.spawn_monitor(fib(n - 2, handle.clone()));
+///         f0.join(f1).map(|(a0, a1)| a0 + a1).map_err(|_| ()).boxed()
+///     }
+/// }
+///
+/// # fn main() {
+/// let mut executor = ThreadPoolExecutor::new().unwrap();
+/// let monitor = executor.spawn_monitor(fib(7, executor.handle()));
+/// let answer = executor.run_fiber(monitor).unwrap();
+/// assert_eq!(answer, Ok(13));
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct ThreadPoolExecutor {
     pool: SchedulerPool,
     pollers: PollerPool,
-    spawn_rx: std_mpsc::Receiver<fiber::Task>,
-    spawn_tx: std_mpsc::Sender<fiber::Task>,
+    spawn_rx: std_mpsc::Receiver<Task>,
+    spawn_tx: std_mpsc::Sender<Task>,
     round: usize,
     steps: usize,
 }
 impl ThreadPoolExecutor {
+    /// Creates a new instance of `ThreadPoolExecutor`.
+    ///
+    /// This is equivalent to `ThreadPoolExecutor::with_thread_count(num_cpus::get() * 2)`.
     pub fn new() -> io::Result<Self> {
         Self::with_thread_count(num_cpus::get() * 2)
     }
+
+    /// Creates a new instance of `ThreadPoolExecutor` with the specified size of thread pool.
+    ///
+    /// # Implementation Details
+    ///
+    /// Note that current implementation is very naive and
+    /// should be improved in future releases.
+    ///
+    /// Internally, `count` threads are assigned to each of
+    /// the scheduler (i.e., `fibers::fiber::Scheduler`) and
+    /// the I/O poller (i.e., `fibers::io::poll::Poller`).
+    ///
+    /// When `spawn` function is called, the executor will assign a scheduler (thread)
+    /// for the fiber in simple round robin fashion.
+    ///
+    /// If any of those threads are aborted, the executor will return an error as
+    /// a result of `run_once` method call after that.
     pub fn with_thread_count(count: usize) -> io::Result<Self> {
         assert!(count > 0);
         let pollers = PollerPool::new(count)?;
@@ -52,7 +104,7 @@ impl Executor for ThreadPoolExecutor {
             Err(std_mpsc::TryRecvError::Disconnected) => unreachable!(),
             Ok(task) => {
                 let i = self.round % self.pool.schedulers.len();
-                self.pool.schedulers[i].spawn_future(task.0);
+                self.pool.schedulers[i].spawn_boxed(task.0);
                 self.round = self.round.wrapping_add(1);
             }
         }
@@ -67,15 +119,14 @@ impl Executor for ThreadPoolExecutor {
     }
 }
 
+/// A handle of a `ThreadPoolExecutor` instance.
 #[derive(Debug, Clone)]
 pub struct ThreadPoolExecutorHandle {
-    spawn_tx: std_mpsc::Sender<fiber::Task>,
+    spawn_tx: std_mpsc::Sender<Task>,
 }
 impl Spawn for ThreadPoolExecutorHandle {
-    fn spawn<F>(&self, future: F)
-        where F: Future<Item = (), Error = ()> + Send + 'static
-    {
-        let _ = self.spawn_tx.send(fiber::Task(future.boxed()));
+    fn spawn_boxed(&self, fiber: BoxFuture<(), ()>) {
+        let _ = self.spawn_tx.send(Task(fiber));
     }
 }
 

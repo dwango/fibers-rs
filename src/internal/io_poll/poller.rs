@@ -1,3 +1,6 @@
+// Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
+// See the LICENSE file at the top-level directory of this distribution.
+
 use std::io;
 use std::fmt;
 use std::time;
@@ -251,7 +254,7 @@ impl PollerHandle {
         Register { rx: rx }
     }
 
-    fn set_timeout(&mut self, delay_from_now: time::Duration) -> Timeout {
+    fn set_timeout(&self, delay_from_now: time::Duration) -> Timeout {
         let (tx, rx) = oneshot::channel();
         let expiry_time = time::Instant::now() + delay_from_now;
         let timeout_id = self.next_timeout_id.fetch_add(1, atomic::Ordering::SeqCst);
@@ -268,7 +271,7 @@ impl PollerHandle {
     }
 }
 
-pub fn set_timeout(poller: &mut PollerHandle, delay_from_now: time::Duration) -> Timeout {
+pub fn set_timeout(poller: &PollerHandle, delay_from_now: time::Duration) -> Timeout {
     poller.set_timeout(delay_from_now)
 }
 

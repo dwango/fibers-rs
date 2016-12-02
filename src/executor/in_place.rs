@@ -1,6 +1,9 @@
+// Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
+// See the LICENSE file at the top-level directory of this distribution.
+
 use std::io;
 use std::time;
-use futures::Future;
+use futures::BoxFuture;
 
 use fiber::{self, Spawn};
 use io::poll;
@@ -68,15 +71,13 @@ impl Executor for InPlaceExecutor {
     }
 }
 
-/// A handle of an `InPlaceExecutor`.
+/// A handle of an `InPlaceExecutor` instance.
 #[derive(Debug, Clone)]
 pub struct InPlaceExecutorHandle {
     scheduler: fiber::SchedulerHandle,
 }
 impl Spawn for InPlaceExecutorHandle {
-    fn spawn<F>(&self, future: F)
-        where F: Future<Item = (), Error = ()> + Send + 'static
-    {
-        self.scheduler.spawn_future(future.boxed())
+    fn spawn_boxed(&self, fiber: BoxFuture<(), ()>) {
+        self.scheduler.spawn_boxed(fiber)
     }
 }

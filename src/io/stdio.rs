@@ -1,3 +1,6 @@
+// Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
+// See the LICENSE file at the top-level directory of this distribution.
+
 //! Non-blocking variants of standard I/O streams.
 use std::io::{self, Read};
 use std::error;

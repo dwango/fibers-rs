@@ -1,3 +1,6 @@
+// Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
+// See the LICENSE file at the top-level directory of this distribution.
+
 //! Multi-producer, single-consumer FIFO queue communication primitives.
 //!
 //! Basically, the structures in this module are thin wrapper of
@@ -250,8 +253,9 @@ impl Notifier {
     pub fn await(&mut self) {
         loop {
             if let Some(mut unpark) = self.unpark.try_borrow_mut() {
-                if unpark.as_ref().map(|u| u.context_id()) != fiber::context_id() {
-                    *unpark = fiber::park();
+                let context_id = fiber::with_current_context(|c| c.context_id());
+                if unpark.as_ref().map(|u| u.context_id()) != context_id {
+                    *unpark = fiber::with_current_context(|mut c| c.park());
                 }
                 return;
             }

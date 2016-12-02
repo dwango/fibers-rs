@@ -1,3 +1,7 @@
+// Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
+// See the LICENSE file at the top-level directory of this distribution.
+#![warn(missing_docs)]
+
 extern crate mio;
 extern crate futures;
 extern crate splay_tree;

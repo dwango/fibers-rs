@@ -1,4 +1,10 @@
-//! I/O events polling functionalities.
+// Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
+// See the LICENSE file at the top-level directory of this distribution.
+
+//! I/O events polling functionalities (for developers).
+//!
+//! This module is mainly exported for developers.
+//! So, usual users do not need to be conscious.
 //!
 //! # Implementation Details
 //!

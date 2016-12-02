@@ -1,11 +1,16 @@
+// Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
+// See the LICENSE file at the top-level directory of this distribution.
+
 use std::sync::atomic;
 use std::collections::{HashMap, VecDeque};
 use std::sync::mpsc as std_mpsc;
 use std::cell::RefCell;
-use futures::{self, Future, IntoFuture};
+use futures::BoxFuture;
 
-use internal::io_poll as poll;
 use fiber;
+use internal::fiber::Task;
+use internal::io_poll as poll;
+use super::{Spawn, FiberState};
 
 lazy_static! {
     static ref NEXT_SCHEDULER_ID: atomic::AtomicUsize = {
@@ -14,16 +19,28 @@ lazy_static! {
 }
 
 thread_local! {
-    static CURRENT_CONTEXT: RefCell<Context> = {
-        RefCell::new(Context::new())
+    static CURRENT_CONTEXT: RefCell<InnerContext> = {
+        RefCell::new(InnerContext::new())
     };
 }
 
 type RequestSender = std_mpsc::Sender<Request>;
 type RequestReceiver = std_mpsc::Receiver<Request>;
 
+/// The identifier of a scheduler.
 pub type SchedulerId = usize;
 
+/// Scheduler of spawned fibers.
+///
+/// Scheduler manages spawned fibers state.
+/// If a fiber is in runnable state (e.g., not waiting for I/O events),
+/// the scheduler will push the fiber in it's run queue.
+/// When `run_once` method is called, the first fiber (i.e., future) in the queue
+/// will be poped and executed (i.e., `Future::poll` method is called).
+/// If the future of a fiber moves to readied state,
+/// it will be removed from the scheduler.
+
+/// For efficiency reasons, it is recommended to run a scheduler on a dedicated thread.
 #[derive(Debug)]
 pub struct Scheduler {
     scheduler_id: SchedulerId,
@@ -35,6 +52,7 @@ pub struct Scheduler {
     poller: poll::PollerHandle,
 }
 impl Scheduler {
+    /// Creates a new scheduler instance.
     pub fn new(poller: poll::PollerHandle) -> Self {
         let (request_tx, request_rx) = std_mpsc::channel();
         Scheduler {
@@ -47,25 +65,30 @@ impl Scheduler {
             poller: poller,
         }
     }
+
+    /// Returns the identifier of this scheduler.
     pub fn scheduler_id(&self) -> SchedulerId {
         self.scheduler_id
     }
+
+    /// Returns the length of the run queue of this scheduler.
     pub fn run_queue_len(&self) -> usize {
         self.run_queue.len()
     }
+
+    /// Returns the count of alive fibers (i.e., not readied futures) in this scheduler.
     pub fn fiber_count(&self) -> usize {
         self.fibers.len()
     }
+
+    /// Returns a handle of this scheduler.
     pub fn handle(&self) -> SchedulerHandle {
         SchedulerHandle { request_tx: self.request_tx.clone() }
     }
-    pub fn spawn<F, T>(&self, f: F)
-        where F: FnOnce() -> T + Send + 'static,
-              T: IntoFuture<Item = (), Error = ()> + Send + 'static,
-              T::Future: Send
-    {
-        self.handle().spawn(f);
-    }
+
+    /// Runs one unit of works.
+    ///
+    /// If the scheduler does something, it will return `true` otherwise `false`.
     pub fn run_once(&mut self) -> bool {
         let mut did_something = false;
 
@@ -87,6 +110,7 @@ impl Scheduler {
 
         did_something
     }
+
     fn handle_request(&mut self, request: Request) {
         match request {
             Request::Spawn(task) => self.spawn_fiber(task),
@@ -97,7 +121,7 @@ impl Scheduler {
             }
         }
     }
-    fn spawn_fiber(&mut self, task: fiber::Task) {
+    fn spawn_fiber(&mut self, task: Task) {
         let fiber_id = self.next_fiber_id();
         self.fibers.insert(fiber_id, fiber::FiberState::new(fiber_id, task));
         self.schedule(fiber_id);
@@ -113,7 +137,8 @@ impl Scheduler {
                 {
                     let scheduler = assert_some!(context.scheduler.as_mut());
                     if !scheduler.poller.is_alive() {
-                        // TODO: Return `Err(io::Error)` to caller
+                        // TODO: Return `Err(io::Error)` to caller and
+                        // handle the error in upper layers
                         panic!("Poller is down");
                     }
                 }
@@ -161,23 +186,22 @@ impl Scheduler {
     }
 }
 
+/// A handle of a scheduler.
 #[derive(Debug, Clone)]
 pub struct SchedulerHandle {
     request_tx: RequestSender,
 }
 impl SchedulerHandle {
-    pub fn spawn<F, T>(&self, f: F)
-        where F: FnOnce() -> T + Send + 'static,
-              T: IntoFuture<Item = (), Error = ()> + Send + 'static,
-              T::Future: Send
-    {
-        self.spawn_future(futures::lazy(f).boxed())
-    }
-    pub fn spawn_future(&self, f: fiber::FiberFuture) {
-        let _ = self.request_tx.send(Request::Spawn(fiber::Task(f)));
-    }
+    /// Wakes up a specified fiber in the scheduler.
+    ///
+    /// This forces the fiber to be pushed to the run queue of the scheduler.
     pub fn wakeup(&self, fiber_id: fiber::FiberId) {
         let _ = self.request_tx.send(Request::WakeUp(fiber_id));
+    }
+}
+impl Spawn for SchedulerHandle {
+    fn spawn_boxed(&self, fiber: BoxFuture<(), ()>) {
+        let _ = self.request_tx.send(Request::Spawn(Task(fiber)));
     }
 }
 
@@ -188,14 +212,48 @@ pub struct CurrentScheduler {
     pub poller: poll::PollerHandle,
 }
 
-#[derive(Debug)]
-pub struct Context {
-    pub scheduler: Option<CurrentScheduler>,
-    pub fiber: Option<*mut fiber::FiberState>,
+
+/// Calls `f` with the current execution context.
+///
+/// If this function is called on the outside of a fiber, it will ignores `f` and returns `None`.
+pub fn with_current_context<F, T>(f: F) -> Option<T>
+    where F: FnOnce(Context) -> T
+{
+    CURRENT_CONTEXT.with(|inner_context| inner_context.borrow_mut().as_context().map(f))
 }
-impl Context {
-    pub fn new() -> Self {
-        Context {
+
+/// The execution context of the currently running fiber.
+#[derive(Debug)]
+pub struct Context<'a> {
+    scheduler: &'a mut CurrentScheduler,
+    fiber: &'a mut FiberState,
+}
+impl<'a> Context<'a> {
+    /// Returns the identifier of the current exeuction context.
+    pub fn context_id(&self) -> super::ContextId {
+        (self.scheduler.id, self.fiber.fiber_id)
+    }
+
+    /// Parks the current fiber.
+    pub fn park(&mut self) -> super::Unpark {
+        self.fiber.park(self.scheduler.id, self.scheduler.handle.clone())
+    }
+
+    /// Returns the I/O event poller for this context.
+    pub fn poller(&mut self) -> &mut poll::PollerHandle {
+        &mut self.scheduler.poller
+    }
+}
+
+// TODO: rename
+#[derive(Debug)]
+struct InnerContext {
+    pub scheduler: Option<CurrentScheduler>,
+    fiber: Option<*mut FiberState>,
+}
+impl InnerContext {
+    fn new() -> Self {
+        InnerContext {
             scheduler: None,
             fiber: None,
         }
@@ -207,24 +265,22 @@ impl Context {
             poller: scheduler.poller.clone(),
         })
     }
-    pub fn with_current_ref<F, T>(f: F) -> T
-        where F: FnOnce(&Context) -> T
-    {
-        CURRENT_CONTEXT.with(|context| f(&*context.borrow()))
-    }
-    pub fn with_current_mut<F, T>(f: F) -> T
-        where F: FnOnce(&mut Context) -> T
-    {
-        CURRENT_CONTEXT.with(|context| f(&mut *context.borrow_mut()))
-    }
-    pub fn fiber_mut(&self) -> Option<&mut fiber::FiberState> {
-        // TODO: &mut self
-        self.fiber.map(|fiber| unsafe { &mut *fiber })
+    pub fn as_context(&mut self) -> Option<Context> {
+        if let Some(scheduler) = self.scheduler.as_mut() {
+            if let Some(fiber) = self.fiber {
+                let fiber = unsafe { &mut *fiber };
+                return Some(Context {
+                    scheduler: scheduler,
+                    fiber: fiber,
+                });
+            }
+        }
+        None
     }
 }
 
 #[derive(Debug)]
-pub enum Request {
-    Spawn(fiber::Task),
+enum Request {
+    Spawn(Task),
     WakeUp(fiber::FiberId),
 }
