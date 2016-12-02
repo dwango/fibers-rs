@@ -226,6 +226,9 @@ fn main() {
 }
 ```
 
+Other examples are found in "fibers/examples" directory.
+And you can run an example by executing `cargo run --example ${EXAMPLE_NAME}` command.
+
 License
 -------
 
