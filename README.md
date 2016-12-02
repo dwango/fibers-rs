@@ -234,8 +234,8 @@ fn main() {
     let handle = executor.handle();
 
     // Spawns a fiber for echo client.
-    let monitor = executor.spawn_monitor(TcpStream::connect(addr).and_then(move |stream| {
-        println!("# CONNECTED: {}", addr);
+    let monitor = executor.spawn_monitor(TcpStream::connect(server_addr).and_then(move |stream| {
+        println!("# CONNECTED: {}", server_addr);
         let (reader, writer) = (stream.clone(), stream);
 
         // Writer: It sends data read from the standard input stream to the connected server.
