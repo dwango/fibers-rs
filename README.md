@@ -19,8 +19,31 @@ However, its existence is hidden from the user, so you do not usually have to wo
 
 ---
 
+`Future` is an excellent way to represent asynchronous task.
+It is intuitive, easily composed with other futures to represent a complicated task,
+without runtime overhead.
+
+But, there is a remaining problem that
+"How to efficiently execute (possibility a very large amount of) concurrent tasks?".
+`fibers` is an answer to the problem.
+
+
+A fiber is a future.
+
+remaining probrem of a future is ... , ant fibers is an answer about it.
+
+responsibility of fibers is conceptually versy simple.
+it is passed a future and exeute it.
+
+multithread, core transparent, scalable.
+
+asynchronous primitives e.g., ...
+
+main concern of this libary is ... , and it is preferred.
+
+---
+
 A fiber is a future which executed by ... .
-(mio is hidden and no prerequirement)
 
 futures is gread ... . but a remaiing problems is
 "how exeuted the futures efficiently (and especially) with asynchronous I/O ?"
@@ -38,6 +61,8 @@ asynchronous i/o and other asynchronous primitives.
 
 multithread support ... . thread transparent
 (for example future and i/o primitive free to moves between fibers) .
+
+privides primitives ...
 
 intuitive and easy to use.
 
