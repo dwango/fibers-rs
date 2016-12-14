@@ -295,11 +295,16 @@ impl TcpStream {
             &mut self.write_monitor
         }
     }
+    fn start_monitor_if_needed(&mut self, interest: Interest) {
+        if self.monitor(interest).is_none() {
+            *self.monitor(interest) = Some(self.handle.monitor(interest));
+        }
+    }
     fn operate<F, T>(&mut self, interest: Interest, f: F) -> io::Result<T>
         where F: FnOnce(&mut mio::tcp::TcpStream) -> io::Result<T>
     {
         if let Some(mut monitor) = self.monitor(interest).take() {
-            if let Async::Ready(()) =monitor.poll().map_err(into_io_error)? {
+            if let Async::Ready(()) = monitor.poll().map_err(into_io_error)? {
                 self.operate(interest, f)
             } else {
                 *self.monitor(interest) = Some(monitor);
@@ -377,11 +382,12 @@ impl Future for ConnectInner {
                 }
             }
             ConnectInner::Connecting(mut stream) => {
-                use std::io::Write;
-                match stream.flush() {
-                    Ok(()) => Ok(Async::Ready(stream)),
+                match stream.peer_addr() {
+                    Ok(_) => Ok(Async::Ready(stream)),
                     Err(e) => {
-                        if e.kind() == io::ErrorKind::WouldBlock {
+                        if e.kind() == io::ErrorKind::NotConnected {
+                            stream.start_monitor_if_needed(Interest::Write);
+                            *self = ConnectInner::Connecting(stream);
                             Ok(Async::NotReady)
                         } else {
                             Err(e)
