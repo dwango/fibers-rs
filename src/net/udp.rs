@@ -89,6 +89,15 @@ impl UdpSocket {
         self.handle.inner().local_addr()
     }
 
+    /// Get the value of the `SO_ERROR` option on this socket.
+    ///
+    /// This will retrieve the stored error in the underlying socket,
+    /// clearing the field in the process.
+    /// This can be useful for checking errors between calls.
+    pub fn take_error(&self) -> io::Result<Option<io::Error>> {
+        self.handle.inner().take_error()
+    }
+
     /// Calls `f` with the reference to the inner socket.
     pub unsafe fn with_inner<F, T>(&self, f: F) -> T
         where F: FnOnce(&mio::udp::UdpSocket) -> T

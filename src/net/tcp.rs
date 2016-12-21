@@ -80,6 +80,15 @@ impl TcpListener {
         self.handle.inner().local_addr()
     }
 
+    /// Get the value of the `SO_ERROR` option on this socket.
+    ///
+    /// This will retrieve the stored error in the underlying socket,
+    /// clearing the field in the process.
+    /// This can be useful for checking errors between calls.
+    pub fn take_error(&self) -> io::Result<Option<io::Error>> {
+        self.handle.inner().take_error()
+    }
+
     /// Calls `f` with the reference to the inner socket.
     pub unsafe fn with_inner<F, T>(&self, f: F) -> T
         where F: FnOnce(&mio::tcp::TcpListener) -> T
@@ -281,6 +290,15 @@ impl TcpStream {
         self.handle.inner().peer_addr()
     }
 
+    /// Get the value of the `SO_ERROR` option on this socket.
+    ///
+    /// This will retrieve the stored error in the underlying socket,
+    /// clearing the field in the process.
+    /// This can be useful for checking errors between calls.
+    pub fn take_error(&self) -> io::Result<Option<io::Error>> {
+        self.handle.inner().take_error()
+    }
+
     /// Calls `f` with the reference to the inner socket.
     pub unsafe fn with_inner<F, T>(&self, f: F) -> T
         where F: FnOnce(&mio::tcp::TcpStream) -> T
@@ -385,6 +403,9 @@ impl Future for ConnectInner {
                 match stream.peer_addr() {
                     Ok(_) => Ok(Async::Ready(stream)),
                     Err(e) => {
+                        if let Some(e) = stream.take_error()? {
+                            Err(e)?;
+                        }
                         if e.kind() == io::ErrorKind::NotConnected {
                             stream.start_monitor_if_needed(Interest::Write);
                             *self = ConnectInner::Connecting(stream);
