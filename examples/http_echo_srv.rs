@@ -4,13 +4,13 @@
 extern crate clap;
 extern crate httparse;
 extern crate futures;
-extern crate handy_io;
+extern crate handy_async;
 extern crate fibers;
 
 use std::io;
 use clap::{App, Arg};
-use handy_io::io::{ReadFrom, WriteTo};
-use handy_io::pattern::{self, Window, Branch, Pattern};
+use handy_async::io::{ReadFrom, WriteInto};
+use handy_async::pattern::{self, Window, Branch, Pattern};
 use futures::{Future, Stream};
 use fibers::{Spawn, Executor, ThreadPoolExecutor};
 
@@ -62,12 +62,15 @@ fn main() {
                                 };
                                 pattern.map(move |buf: Window<_>| buf.set_start(content_offset))
                             });
-                        read_request_pattern.lossless_read_from(client)
+                        read_request_pattern.read_from(client)
                             .then(|result| {
                                 // Write response
                                 let (client, result) = match result {
                                     Ok((client, content)) => (client, Ok(content)),
-                                    Err((client, error)) => (client, Err(error)),
+                                    Err(error) => {
+                                        let (client, io_error) = error.unwrap();
+                                        (client, Err(io_error))
+                                    }
                                 };
                                 let pattern = Pattern::and_then(result, |content| {
                                         format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
@@ -75,14 +78,14 @@ fn main() {
                                             .chain(content)
                                             .map(|_| ())
                                     })
-                                    .or_else(|error| {
+                                    .or_else(|error: io::Error| {
                                         let message = error.to_string();
                                         format!("HTTP/1.1 500 OK\r\nContent-Length: {}\r\n\r\n",
                                                 message.len())
                                             .chain(message)
                                             .map(|_| ())
                                     });
-                                pattern.write_to(client)
+                                pattern.write_into(client).map_err(|e| e.into_error())
                             })
                     })
                     .then(move |r| {

@@ -3,13 +3,13 @@
 
 extern crate fibers;
 extern crate futures;
-extern crate handy_io;
+extern crate handy_async;
 
 use fibers::{Spawn, Executor, ThreadPoolExecutor};
 use fibers::net::{TcpListener, TcpStream};
 use fibers::sync::oneshot;
 use futures::{Future, Stream};
-use handy_io::io::{AsyncWrite, AsyncRead};
+use handy_async::io::{AsyncWrite, AsyncRead};
 
 fn main() {
     let mut executor = ThreadPoolExecutor::new().unwrap();

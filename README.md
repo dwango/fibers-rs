@@ -58,7 +58,7 @@ asynchronous fashion (See documentations of [net](https://docs.rs/fibers/0.1/fib
 [time](https://docs.rs/fibers/0.1/fibers/time/index.html) modules for more details).
 
 The main concern of this library is "how to execute fibers".
-So it is preferred to use external crates (e.g., [handy_io](https://github.com/sile/handy_io))
+So it is preferred to use external crates (e.g., [handy_async](https://github.com/sile/handy_async))
 to describe "how to represent asynchronous tasks".
 
 
@@ -141,14 +141,14 @@ An example of TCP echo server listening at the address "127.0.0.1:3000":
 // See also: "fibers/examples/tcp_echo_srv.rs"
 extern crate fibers;
 extern crate futures;
-extern crate handy_io;
+extern crate handy_async;
 
 use std::io;
 use fibers::{Spawn, Executor, ThreadPoolExecutor};
 use fibers::net::TcpListener;
 use futures::{Future, Stream};
-use handy_io::io::{AsyncWrite, AsyncRead};
-use handy_io::pattern::{Pattern, AllowPartial};
+use handy_async::io::{AsyncWrite, ReadFrom};
+use handy_async::pattern::AllowPartial;
 
 fn main() {
     let server_addr = "127.0.0.1:3000".parse().expect("Invalid TCP bind address");
@@ -178,7 +178,7 @@ fn main() {
                         handle1.spawn(rx.map_err(|_| -> io::Error { unreachable!() })
                             .fold(writer, |writer, buf: Vec<u8>| {
                                 println!("# SEND: {} bytes", buf.len());
-                                writer.async_write_all(buf).map(|(w, _)| w).map_err(|(_, _, e)| e)
+                                writer.async_write_all(buf).map(|(w, _)| w).map_err(|e| e.into_error())
                             })
                             .then(|r| {
                                 println!("# Writer finished: {:?}", r);
@@ -186,9 +186,8 @@ fn main() {
                             }));
 
                         // The reader side is executed in the current fiber.
-                        let stream = vec![0;1024].allow_partial().repeat();
-                        reader.async_read_stream(stream)
-                            .map_err(|(_, e)| e)
+                        let stream = vec![0;1024].allow_partial().into_stream(reader);
+                        stream.map_err(|e| e.into_error())
                             .fold(tx, |tx, (mut buf, len)| {
                                 buf.truncate(len);
                                 println!("# RECV: {} bytes", buf.len());
@@ -216,13 +215,13 @@ And the code of the client side:
 // See also: "fibers/examples/tcp_echo_cli.rs"
 extern crate fibers;
 extern crate futures;
-extern crate handy_io;
+extern crate handy_async;
 
 use fibers::{Spawn, Executor, InPlaceExecutor};
 use fibers::net::TcpStream;
 use futures::{Future, Stream};
-use handy_io::io::{AsyncWrite, AsyncRead};
-use handy_io::pattern::{Pattern, AllowPartial};
+use handy_async::io::{AsyncWrite, ReadFrom};
+use handy_async::pattern::AllowPartial;
 
 fn main() {
     let server_addr = "127.0.0.1:3000".parse().unwrap();
@@ -239,12 +238,11 @@ fn main() {
         let (reader, writer) = (stream.clone(), stream);
 
         // Writer: It sends data read from the standard input stream to the connected server.
-        let stdin_stream = fibers::io::stdin()
-            .async_read_stream(vec![0; 256].allow_partial().repeat());
-        handle.spawn(stdin_stream.map_err(|(_, e)| e)
+        let stdin_stream = vec![0; 256].allow_partial().into_stream(fibers::io::stdin());
+        handle.spawn(stdin_stream.map_err(|e| e.into_error())
             .fold(writer, |writer, (mut buf, size)| {
                 buf.truncate(size);
-                writer.async_write_all(buf).map(|(w, _)| w).map_err(|(_, _, e)| e)
+                writer.async_write_all(buf).map(|(w, _)| w).map_err(|e| e.into_error())
             })
             .then(|r| {
                 println!("# Writer finished: {:?}", r);
@@ -252,8 +250,8 @@ fn main() {
             }));
 
         // Reader: It outputs data received from the server to the standard output stream.
-        reader.async_read_stream(vec![0; 256].allow_partial().repeat())
-            .map_err(|(_, e)| e)
+        let stream = vec![0; 256].allow_partial().into_stream(reader);
+        stream.map_err(|e| e.into_error())
             .for_each(|(mut buf, len)| {
                 buf.truncate(len);
                 println!("{}", String::from_utf8(buf).expect("Invalid UTF-8"));

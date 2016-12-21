@@ -52,7 +52,7 @@
 //! [sync](sync/index.html), [io](io/index.html), [time](time/index.html) modules for more details).
 //! 
 //! The main concern of this library is "how to execute fibers".
-//! So it is preferred to use external crates (e.g., [handy_io](https://github.com/sile/handy_io))
+//! So it is preferred to use external crates (e.g., [handy_async](https://github.com/sile/handy_async))
 //! to describe "how to represent asynchronous tasks".
 //! 
 //!
@@ -111,13 +111,13 @@
 //! ```no_run
 //! # extern crate fibers;
 //! # extern crate futures;
-//! # extern crate handy_io;
+//! # extern crate handy_async;
 //! use std::io;
 //! use fibers::{Spawn, Executor, ThreadPoolExecutor};
 //! use fibers::net::TcpListener;
 //! use futures::{Future, Stream};
-//! use handy_io::io::{AsyncWrite, AsyncRead};
-//! use handy_io::pattern::{Pattern, AllowPartial};
+//! use handy_async::io::{AsyncWrite, ReadFrom};
+//! use handy_async::pattern::AllowPartial;
 //! 
 //! # fn main() {
 //! let server_addr = "127.0.0.1:3000".parse().expect("Invalid TCP bind address");
@@ -147,7 +147,9 @@
 //!                     handle1.spawn(rx.map_err(|_| -> io::Error { unreachable!() })
 //!                         .fold(writer, |writer, buf: Vec<u8>| {
 //!                             println!("# SEND: {} bytes", buf.len());
-//!                             writer.async_write_all(buf).map(|(w, _)| w).map_err(|(_, _, e)| e)
+//!                             writer.async_write_all(buf)
+//!                                   .map(|(w, _)| w)
+//!                                   .map_err(|e| e.into_error())
 //!                         })
 //!                         .then(|r| {
 //!                             println!("# Writer finished: {:?}", r);
@@ -155,9 +157,8 @@
 //!                         }));
 //! 
 //!                     // The reader side is executed in the current fiber.
-//!                     let stream = vec![0;1024].allow_partial().repeat();
-//!                     reader.async_read_stream(stream)
-//!                         .map_err(|(_, e)| e)
+//!                     let stream = vec![0;1024].allow_partial().into_stream(reader);
+//!                     stream.map_err(|e| e.into_error())
 //!                         .fold(tx, |tx, (mut buf, len)| {
 //!                             buf.truncate(len);
 //!                             println!("# RECV: {} bytes", buf.len());

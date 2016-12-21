@@ -3,15 +3,15 @@
 
 extern crate clap;
 extern crate futures;
-extern crate handy_io;
+extern crate handy_async;
 extern crate fibers;
 
 use std::io;
 use clap::{App, Arg};
 use fibers::{Spawn, Executor, ThreadPoolExecutor};
 use futures::{Future, Stream};
-use handy_io::io::{AsyncWrite, AsyncRead};
-use handy_io::pattern::{Pattern, AllowPartial};
+use handy_async::io::{AsyncWrite, ReadFrom};
+use handy_async::pattern::AllowPartial;
 
 fn main() {
     let matches = App::new("tcp_echo_srv")
@@ -39,7 +39,9 @@ fn main() {
                         handle1.spawn(rx.map_err(|_| -> io::Error { unreachable!() })
                             .fold(writer, |writer, buf: Vec<u8>| {
                                 println!("# SEND: {} bytes", buf.len());
-                                writer.async_write_all(buf).map(|(w, _)| w).map_err(|(_, _, e)| e)
+                                writer.async_write_all(buf)
+                                    .map(|(w, _)| w)
+                                    .map_err(|e| e.into_error())
                             })
                             .then(|r| {
                                 println!("# Writer finished: {:?}", r);
@@ -47,9 +49,8 @@ fn main() {
                             }));
 
                         // reader
-                        let stream = vec![0;1024].allow_partial().repeat();
-                        reader.async_read_stream(stream)
-                            .map_err(|(_, e)| e)
+                        let stream = vec![0;1024].allow_partial().into_stream(reader);
+                        stream.map_err(|e| e.into_error())
                             .fold(tx, |tx, (mut buf, len)| {
                                 buf.truncate(len);
                                 println!("# RECV: {} bytes", buf.len());

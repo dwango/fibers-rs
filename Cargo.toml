@@ -19,5 +19,5 @@ num_cpus = "1.2"
 
 [dev-dependencies]
 clap = "2.19"
-handy_io = "0.1"
+handy_async = "0.2"
 httparse = "1.2"

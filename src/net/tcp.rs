@@ -193,7 +193,7 @@ impl Future for Connected {
 ///
 /// To handle read/write operations over TCP streams in
 /// [futures](https://github.com/alexcrichton/futures-rs) style,
-/// it is preferred to use external crate like [handy_io](https://github.com/sile/handy_io).
+/// it is preferred to use external crate like [handy_async](https://github.com/sile/handy_async).
 ///
 /// # Examples
 ///
