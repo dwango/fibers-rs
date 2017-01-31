@@ -206,7 +206,7 @@ macro_rules! assert_ok {
 pub use self::executor::{Executor, InPlaceExecutor, ThreadPoolExecutor};
 
 #[doc(inline)]
-pub use self::fiber::Spawn;
+pub use self::fiber::{Spawn, BoxSpawn};
 
 pub mod io;
 pub mod net;

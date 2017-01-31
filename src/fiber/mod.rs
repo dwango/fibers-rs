@@ -5,6 +5,7 @@
 //!
 //! Those are mainly exported for developers.
 //! So, usual users do not need to be conscious.
+use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicUsize};
 use futures::{self, Async, Future, BoxFuture, IntoFuture};
@@ -55,6 +56,26 @@ pub trait Spawn {
         let (monitored, monitor) = oneshot::monitor();
         self.spawn(f.then(move |r| Ok(monitored.exit(r))));
         monitor
+    }
+
+    /// Converts this instance into a boxed object.
+    fn boxed(self) -> BoxSpawn
+        where Self: Sized + Send + 'static
+    {
+        BoxSpawn(Box::new(move |fiber| self.spawn_boxed(fiber)))
+    }
+}
+
+/// Boxed `Spawn` object.
+pub struct BoxSpawn(Box<Fn(BoxFuture<(), ()>) + Send + 'static>);
+impl Spawn for BoxSpawn {
+    fn spawn_boxed(&self, fiber: BoxFuture<(), ()>) {
+        (self.0)(fiber);
+    }
+}
+impl fmt::Debug for BoxSpawn {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "BoxSpawn(_)")
     }
 }
 
