@@ -222,7 +222,7 @@ impl<T, E> Future for Monitor<T, E> {
 }
 
 /// The reason that a monitored peer has not completed successfully.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MonitorError<E> {
     /// The monitor channel is disconnected.
     Aborted,
@@ -231,6 +231,60 @@ pub enum MonitorError<E> {
     ///
     /// i.e., `Monitored::exit(self, Err(E))` was called
     Failed(E),
+}
+impl<E> MonitorError<E> {
+    /// Maps an `MonitorError<E>` to `MonitorError<T>` by applying a function to a contained error.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fibers::sync::oneshot::MonitorError;
+    ///
+    /// let mut e = MonitorError::Failed(10);
+    /// assert_eq!(e.map(|v| v.to_string()), MonitorError::Failed("10".to_string()));
+    ///
+    /// e = MonitorError::Aborted;
+    /// assert_eq!(e.map(|v| v.to_string()), MonitorError::Aborted);
+    /// ```
+    pub fn map<F, T>(self, f: F) -> MonitorError<T>
+        where F: FnOnce(E) -> T
+    {
+        match self {
+            MonitorError::Aborted => MonitorError::Aborted,
+            MonitorError::Failed(e) => MonitorError::Failed(f(e)),
+        }
+    }
+
+    /// Unwraps `MonitorError` and returns the internal error `E`.
+    ///
+    /// If `self` is `MonitorError::Aborted`, `or_error` will be returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fibers::sync::oneshot::MonitorError;
+    ///
+    /// let e = MonitorError::Aborted;
+    /// assert_eq!(e.unwrap_or(10), 10);
+    ///
+    /// let e = MonitorError::Failed(20);
+    /// assert_eq!(e.unwrap_or(10), 20);
+    /// ```
+    pub fn unwrap_or(self, or_error: E) -> E {
+        self.unwrap_or_else(|| or_error)
+    }
+
+    /// Unwraps `MonitorError` and returns the internal error `E`.
+    ///
+    /// If `self` is `MonitorError::Aborted`, the result of `f()` will be returned.
+    pub fn unwrap_or_else<F>(self, f: F) -> E
+        where F: FnOnce() -> E
+    {
+        match self {
+            MonitorError::Aborted => f(),
+            MonitorError::Failed(e) => e,
+        }
+    }
 }
 impl<E: error::Error> error::Error for MonitorError<E> {
     fn description(&self) -> &str {
