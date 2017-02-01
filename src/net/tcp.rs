@@ -135,27 +135,27 @@ impl Stream for Incoming {
     type Item = (Connected, SocketAddr);
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        if let Some(mut monitor) = self.0.monitor.take() {
-            if let Async::Ready(()) = monitor.poll().map_err(into_io_error)? {
-                self.poll()
-            } else {
-                self.0.monitor = Some(monitor);
-                Ok(Async::NotReady)
-            }
-        } else {
-            match self.0.handle.inner().accept() {
-                Ok((stream, addr)) => {
-                    let register =
-                        assert_some!(fiber::with_current_context(|mut c| c.poller().register(stream)));
-                    let stream = Connected(Some(register));
-                    Ok(Async::Ready(Some((stream, addr))))
+        loop {
+            if let Some(mut monitor) = self.0.monitor.take() {
+                if let Async::NotReady = monitor.poll().map_err(into_io_error)? {
+                    self.0.monitor = Some(monitor);
+                    return Ok(Async::NotReady);
                 }
-                Err(e) => {
-                    if e.kind() == io::ErrorKind::WouldBlock {
-                        self.0.monitor = Some(self.0.handle.monitor(Interest::Read));
-                        Ok(Async::NotReady)
-                    } else {
-                        Err(e)
+            } else {
+                match self.0.handle.inner().accept() {
+                    Ok((stream, addr)) => {
+                        let register = assert_some!(fiber::with_current_context(|mut c| {
+                            c.poller().register(stream)
+                        }));
+                        let stream = Connected(Some(register));
+                        return Ok(Async::Ready(Some((stream, addr))));
+                    }
+                    Err(e) => {
+                        if e.kind() == io::ErrorKind::WouldBlock {
+                            self.0.monitor = Some(self.0.handle.monitor(Interest::Read));
+                        } else {
+                            return Err(e);
+                        }
                     }
                 }
             }
