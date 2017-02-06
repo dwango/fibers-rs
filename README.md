@@ -271,6 +271,7 @@ Real examples using `fibers`
 Here is a list of known projects using `fibers`:
 
 - [erl_dist](https://github.com/sile/erl_dist): Erlang Distribution Protocol Implementation
+- [miasht](https://github.com/sile/miasht): Minimum Asynchronous HTTP server/client
 
 License
 -------
