@@ -313,29 +313,41 @@ impl TcpStream {
             &mut self.write_monitor
         }
     }
-    fn start_monitor_if_needed(&mut self, interest: Interest) {
+    fn start_monitor_if_needed(&mut self, interest: Interest) -> Result<bool, io::Error> {
         if self.monitor(interest).is_none() {
             *self.monitor(interest) = Some(self.handle.monitor(interest));
+            if let Err(e) = self.monitor(interest).poll() {
+                return Err(e.unwrap_or_else(|| {
+                    io::Error::new(io::ErrorKind::Other, "Monitor channel disconnected")
+                }));
+            }
+            Ok(true)
+        } else {
+            Ok(false)
         }
     }
-    fn operate<F, T>(&mut self, interest: Interest, f: F) -> io::Result<T>
-        where F: FnOnce(&mut mio::tcp::TcpStream) -> io::Result<T>
+    fn operate<F, T>(&mut self, interest: Interest, mut f: F) -> io::Result<T>
+        where F: FnMut(&mut mio::tcp::TcpStream) -> io::Result<T>
     {
-        if let Some(mut monitor) = self.monitor(interest).take() {
-            if let Async::Ready(()) = monitor.poll().map_err(into_io_error)? {
-                self.operate(interest, f)
-            } else {
-                *self.monitor(interest) = Some(monitor);
-                Err(mio::would_block())
-            }
-        } else {
-            let result = f(&mut *self.handle.inner());
-            result.map_err(|e| {
-                if e.kind() == io::ErrorKind::WouldBlock {
-                    *self.monitor(interest) = Some(self.handle.monitor(interest));
+        loop {
+            if let Some(mut monitor) = self.monitor(interest).take() {
+                if let Async::NotReady = monitor.poll().map_err(into_io_error)? {
+                    *self.monitor(interest) = Some(monitor);
+                    return Err(mio::would_block());
                 }
-                e
-            })
+            } else {
+                let result = f(&mut *self.handle.inner());
+                match result {
+                    Err(e) => {
+                        if e.kind() == io::ErrorKind::WouldBlock {
+                            *self.monitor(interest) = Some(self.handle.monitor(interest));
+                        } else {
+                            return Err(e);
+                        }
+                    }
+                    Ok(v) => return Ok(v),
+                }
+            }
         }
     }
 }
@@ -407,9 +419,13 @@ impl Future for ConnectInner {
                             Err(e)?;
                         }
                         if e.kind() == io::ErrorKind::NotConnected {
-                            stream.start_monitor_if_needed(Interest::Write);
+                            let retry = stream.start_monitor_if_needed(Interest::Write)?;
                             *self = ConnectInner::Connecting(stream);
-                            Ok(Async::NotReady)
+                            if retry {
+                                self.poll()
+                            } else {
+                                Ok(Async::NotReady)
+                            }
                         } else {
                             Err(e)
                         }
