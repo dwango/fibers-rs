@@ -310,7 +310,7 @@ impl<E: fmt::Display> fmt::Display for MonitorError<E> {
 }
 
 /// Creates a oneshot channel for bidirectional monitoring.
-pub fn link<E0, E1>() -> (Link<E0, E1>, Link<E1, E0>) {
+pub fn link<T0, E0, T1, E1>() -> (Link<T0, E0, T1, E1>, Link<T1, E1, T0, E0>) {
     let (tx0, rx0) = monitor();
     let (tx1, rx1) = monitor();
     (Link { tx: tx0, rx: rx1 }, Link { tx: tx1, rx: rx0 })
@@ -320,18 +320,18 @@ pub fn link<E0, E1>() -> (Link<E0, E1>, Link<E1, E0>) {
 ///
 /// This is created by calling `link` function.
 #[derive(Debug)]
-pub struct Link<E0, E1 = E0> {
-    tx: Monitored<(), E0>,
-    rx: Monitor<(), E1>,
+pub struct Link<T0, E0, T1 = T0, E1 = E0> {
+    tx: Monitored<T0, E0>,
+    rx: Monitor<T1, E1>,
 }
-impl<E0, E1> Link<E0, E1> {
+impl<T0, E0, T1, E1> Link<T0, E0, T1, E1> {
     /// Notifies the linked peer that this peer has exited intentionally.
-    pub fn exit(self, result: Result<(), E0>) {
+    pub fn exit(self, result: Result<T0, E0>) {
         self.tx.exit(result);
     }
 }
-impl<E0, E1> Future for Link<E0, E1> {
-    type Item = ();
+impl<T0, E0, T1, E1> Future for Link<T0, E0, T1, E1> {
+    type Item = T1;
     type Error = MonitorError<E1>;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         self.rx.poll()

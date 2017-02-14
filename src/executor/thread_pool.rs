@@ -133,7 +133,7 @@ impl Spawn for ThreadPoolExecutorHandle {
 #[derive(Debug)]
 struct PollerPool {
     pollers: Vec<poll::PollerHandle>,
-    links: Vec<Link<io::Error>>,
+    links: Vec<Link<(), io::Error>>,
 }
 impl PollerPool {
     pub fn new(pool_size: usize) -> io::Result<Self> {
@@ -144,13 +144,11 @@ impl PollerPool {
             let mut poller = poll::Poller::new()?;
             links.push(link0);
             pollers.push(poller.handle());
-            thread::spawn(move || {
-                while let Ok(Async::NotReady) = link1.poll() {
-                    let timeout = time::Duration::from_millis(1);
-                    if let Err(e) = poller.poll(Some(timeout)) {
-                        link1.exit(Err(e));
-                        return;
-                    }
+            thread::spawn(move || while let Ok(Async::NotReady) = link1.poll() {
+                let timeout = time::Duration::from_millis(1);
+                if let Err(e) = poller.poll(Some(timeout)) {
+                    link1.exit(Err(e));
+                    return;
                 }
             });
         }
@@ -164,7 +162,7 @@ impl PollerPool {
 #[derive(Debug)]
 struct SchedulerPool {
     schedulers: Vec<fiber::SchedulerHandle>,
-    links: Vec<Link<()>>,
+    links: Vec<Link<(), ()>>,
 }
 impl SchedulerPool {
     pub fn new(poller_pool: &PollerPool) -> Self {
@@ -175,11 +173,9 @@ impl SchedulerPool {
             let mut scheduler = fiber::Scheduler::new(poller.clone());
             links.push(link0);
             schedulers.push(scheduler.handle());
-            thread::spawn(move || {
-                while let Ok(Async::NotReady) = link1.poll() {
-                    if !scheduler.run_once() {
-                        thread::sleep(time::Duration::from_millis(1));
-                    }
+            thread::spawn(move || while let Ok(Async::NotReady) = link1.poll() {
+                if !scheduler.run_once() {
+                    thread::sleep(time::Duration::from_millis(1));
                 }
             });
         }
