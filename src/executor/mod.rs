@@ -52,10 +52,15 @@ pub trait Executor: Sized {
 
     /// Runs until the monitored fiber exits.
     fn run_fiber<T, E>(&mut self,
-                       mut monitor: Monitor<T, E>)
+                       monitor: Monitor<T, E>)
                        -> io::Result<Result<T, MonitorError<E>>> {
+        self.run_future(monitor)
+    }
+
+    /// Runs until the future is ready.
+    fn run_future<F: Future>(&mut self, mut future: F) -> io::Result<Result<F::Item, F::Error>> {
         loop {
-            match monitor.poll() {
+            match future.poll() {
                 Err(e) => return Ok(Err(e)),
                 Ok(Async::Ready(v)) => return Ok(Ok(v)),
                 Ok(Async::NotReady) => {}
