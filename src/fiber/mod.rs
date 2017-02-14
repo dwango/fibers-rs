@@ -9,11 +9,13 @@ use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicUsize};
 use futures::{self, Async, Future, BoxFuture, IntoFuture};
+use futures::future::Either;
+use handy_async::future::FutureExt;
 
 pub use self::schedule::{Scheduler, SchedulerHandle, SchedulerId};
 pub use self::schedule::{with_current_context, Context};
 
-use sync::oneshot::{self, Monitor};
+use sync::oneshot::{self, Monitor, Link};
 use internal::fiber::Task;
 
 mod schedule;
@@ -56,6 +58,56 @@ pub trait Spawn {
         let (monitored, monitor) = oneshot::monitor();
         self.spawn(f.then(move |r| Ok(monitored.exit(r))));
         monitor
+    }
+
+    /// Spawns a linked fiber.
+    ///
+    /// If the returning `Link` is dropped, the spawned fiber will terminate.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # extern crate fibers;
+    /// # extern crate futures;
+    /// use fibers::sync::oneshot;
+    /// use fibers::{Executor, InPlaceExecutor, Spawn};
+    /// use futures::{Future, empty};
+    ///
+    /// # fn main() {
+    /// let mut executor = InPlaceExecutor::new().unwrap();
+    /// let (tx, rx) = oneshot::channel();
+    /// let fiber = empty().and_then(move |()| tx.send(()));
+    ///
+    /// // Spanws `fiber` and drops `link`.
+    /// let link = executor.handle().spawn_link(fiber);
+    /// std::mem::drop(link);
+    ///
+    /// // Channel `rx` is disconnected (e.g., `fiber` exited).
+    /// assert!(executor.run_future(rx).unwrap().is_err());
+    /// # }
+    /// ```
+    fn spawn_link<F, T, E>(&self, f: F) -> Link<(), (), T, E>
+        where F: Future<Item = T, Error = E> + Send + 'static,
+              T: Send + 'static,
+              E: Send + 'static
+    {
+        let (link0, link1) = oneshot::link();
+        let future = f.select_either(link1).then(|result| {
+            match result {
+                Err(Either::A((result, link1))) => {
+                    link1.exit(Err(result));
+                }
+                Ok(Either::A((result, link1))) => {
+                    link1.exit(Ok(result));
+                }
+                _ => {
+                    // Disconnected by `link0`
+                }
+            }
+            Ok(())
+        });
+        self.spawn(future);
+        link0
     }
 
     /// Converts this instance into a boxed object.
