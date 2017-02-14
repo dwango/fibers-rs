@@ -14,7 +14,7 @@
 //! ```
 //! # extern crate futures;
 //! # extern crate fibers;
-//! use fibers::{Executor, InPlaceExecutor};
+//! use fibers::{Executor, InPlaceExecutor, Spawn};
 //! use fibers::sync::mpsc;
 //! use futures::{Future, Stream};
 //!
@@ -78,7 +78,7 @@ use internal::sync_atomic::AtomicCell;
 /// ```
 /// # extern crate futures;
 /// # extern crate fibers;
-/// use fibers::{Executor, InPlaceExecutor};
+/// use fibers::{Executor, InPlaceExecutor, Spawn};
 /// use fibers::sync::mpsc;
 /// use futures::{Future, Stream};
 ///
@@ -115,13 +115,13 @@ pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let notifier = Notifier::new();
     let (tx, rx) = std_mpsc::channel();
     (Sender {
-        inner: tx,
-        notifier: notifier.clone(),
-    },
+         inner: tx,
+         notifier: notifier.clone(),
+     },
      Receiver {
-        inner: rx,
-        notifier: notifier,
-    })
+         inner: rx,
+         notifier: notifier,
+     })
 }
 
 /// Creates a new synchronous, bounded channel.
@@ -129,13 +129,13 @@ pub fn sync_channel<T>(bound: usize) -> (SyncSender<T>, Receiver<T>) {
     let notifier = Notifier::new();
     let (tx, rx) = std_mpsc::sync_channel(bound);
     (SyncSender {
-        inner: tx,
-        notifier: notifier.clone(),
-    },
+         inner: tx,
+         notifier: notifier.clone(),
+     },
      Receiver {
-        inner: rx,
-        notifier: notifier,
-    })
+         inner: rx,
+         notifier: notifier,
+     })
 }
 
 /// The receiving-half of a mpsc channel.

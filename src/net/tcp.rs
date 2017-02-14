@@ -20,7 +20,7 @@ use super::{into_io_error, Bind};
 /// // See also: fibers/examples/tcp_example.rs
 /// # extern crate fibers;
 /// # extern crate futures;
-/// use fibers::{Executor, InPlaceExecutor};
+/// use fibers::{Executor, InPlaceExecutor, Spawn};
 /// use fibers::net::{TcpListener, TcpStream};
 /// use fibers::sync::oneshot;
 /// use futures::{Future, Stream};
@@ -210,7 +210,7 @@ impl Future for Connected {
 /// // See also: fibers/examples/tcp_example.rs
 /// # extern crate fibers;
 /// # extern crate futures;
-/// use fibers::{Executor, InPlaceExecutor};
+/// use fibers::{Executor, InPlaceExecutor, Spawn};
 /// use fibers::net::{TcpListener, TcpStream};
 /// use fibers::sync::oneshot;
 /// use futures::{Future, Stream};

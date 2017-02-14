@@ -79,7 +79,7 @@ pub trait Spawn {
     /// let fiber = empty().and_then(move |()| tx.send(()));
     ///
     /// // Spanws `fiber` and drops `link`.
-    /// let link = executor.handle().spawn_link(fiber);
+    /// let link = executor.spawn_link(fiber);
     /// std::mem::drop(link);
     ///
     /// // Channel `rx` is disconnected (e.g., `fiber` exited).

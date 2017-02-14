@@ -118,6 +118,11 @@ impl Executor for ThreadPoolExecutor {
         }
     }
 }
+impl Spawn for ThreadPoolExecutor {
+    fn spawn_boxed(&self, fiber: BoxFuture<(), ()>) {
+        self.handle().spawn_boxed(fiber)
+    }
+}
 
 /// A handle of a `ThreadPoolExecutor` instance.
 #[derive(Debug, Clone)]

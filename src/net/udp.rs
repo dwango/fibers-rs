@@ -18,7 +18,7 @@ use super::{into_io_error, Bind};
 /// # extern crate futures;
 /// # extern crate fibers;
 /// // See also: fibers/examples/udp_example.rs
-/// use fibers::{Executor, InPlaceExecutor};
+/// use fibers::{Executor, InPlaceExecutor, Spawn};
 /// use fibers::net::UdpSocket;
 /// use fibers::sync::oneshot;
 /// use futures::Future;

@@ -70,6 +70,11 @@ impl Executor for InPlaceExecutor {
         Ok(())
     }
 }
+impl Spawn for InPlaceExecutor {
+    fn spawn_boxed(&self, fiber: BoxFuture<(), ()>) {
+        self.handle().spawn_boxed(fiber)
+    }
+}
 
 /// A handle of an `InPlaceExecutor` instance.
 #[derive(Debug, Clone)]

@@ -4,7 +4,7 @@
 extern crate futures;
 extern crate fibers;
 
-use fibers::{Executor, InPlaceExecutor};
+use fibers::{Executor, InPlaceExecutor, Spawn};
 use fibers::net::UdpSocket;
 use fibers::sync::oneshot;
 use futures::Future;

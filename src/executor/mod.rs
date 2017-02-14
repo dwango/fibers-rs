@@ -3,7 +3,7 @@
 
 //! The `Executor` trait and its implementations.
 use std::io;
-use futures::{Async, Future, IntoFuture};
+use futures::{Async, Future};
 
 pub use self::in_place::{InPlaceExecutor, InPlaceExecutorHandle};
 pub use self::thread_pool::{ThreadPoolExecutor, ThreadPoolExecutorHandle};
@@ -21,31 +21,6 @@ pub trait Executor: Sized {
 
     /// Returns the handle of the executor.
     fn handle(&self) -> Self::Handle;
-
-    /// Spawns a fiber which will execute given future.
-    fn spawn<F>(&self, future: F)
-        where F: Future<Item = (), Error = ()> + Send + 'static
-    {
-        self.handle().spawn(future)
-    }
-
-    /// Equivalent to `self.spawn(futures::lazy(|| f()))`.
-    fn spawn_fn<F, T>(&self, f: F)
-        where F: FnOnce() -> T + Send + 'static,
-              T: IntoFuture<Item = (), Error = ()> + Send + 'static,
-              T::Future: Send
-    {
-        self.handle().spawn_fn(f)
-    }
-
-    /// Spawns a fiber and returns a future to monitor it's execution result.
-    fn spawn_monitor<F, T, E>(&self, f: F) -> Monitor<T, E>
-        where F: Future<Item = T, Error = E> + Send + 'static,
-              T: Send + 'static,
-              E: Send + 'static
-    {
-        self.handle().spawn_monitor(f)
-    }
 
     /// Runs one one unit of works.
     fn run_once(&mut self) -> io::Result<()>;

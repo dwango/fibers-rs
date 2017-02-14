@@ -29,7 +29,7 @@ use sync::mpsc;
 /// ```
 /// # extern crate fibers;
 /// # extern crate futures;
-/// use fibers::{Executor, InPlaceExecutor};
+/// use fibers::{Executor, InPlaceExecutor, Spawn};
 /// use fibers::sync::oneshot;
 /// use futures::Future;
 ///
@@ -114,7 +114,7 @@ impl<T> Future for Receiver<T> {
 /// ```
 /// # extern crate fibers;
 /// # extern crate futures;
-/// use fibers::{Executor, InPlaceExecutor};
+/// use fibers::{Executor, InPlaceExecutor, Spawn};
 /// use fibers::sync::oneshot;
 /// use futures::{Async, Future};
 ///
@@ -149,7 +149,7 @@ impl<T> Future for Receiver<T> {
 /// ```
 /// # extern crate fibers;
 /// # extern crate futures;
-/// use fibers::{Executor, InPlaceExecutor};
+/// use fibers::{Executor, InPlaceExecutor, Spawn};
 /// use fibers::sync::oneshot;
 /// use futures::{Async, Future};
 ///
