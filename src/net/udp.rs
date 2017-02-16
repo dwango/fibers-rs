@@ -140,29 +140,26 @@ impl<B: AsRef<[u8]>> Future for SendTo<B> {
     type Error = (UdpSocket, B, io::Error);
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let mut state = self.0.take().expect("Cannot poll SendTo twice");
-        if let Some(mut monitor) = state.monitor.take() {
-            match monitor.poll() {
-                Err(e) => Err((state.socket, state.buf, into_io_error(e))),
-                Ok(Async::NotReady) => {
-                    state.monitor = Some(monitor);
-                    self.0 = Some(state);
-                    Ok(Async::NotReady)
+        loop {
+            if let Some(mut monitor) = state.monitor.take() {
+                match monitor.poll() {
+                    Err(e) => return Err((state.socket, state.buf, into_io_error(e))),
+                    Ok(Async::NotReady) => {
+                        state.monitor = Some(monitor);
+                        self.0 = Some(state);
+                        return Ok(Async::NotReady);
+                    }
+                    Ok(Async::Ready(())) => {}
                 }
-                Ok(Async::Ready(())) => {
-                    self.0 = Some(state);
-                    self.poll()
+            } else {
+                let result = state.socket.handle.inner().send_to(state.buf.as_ref(), &state.target);
+                match result {
+                    Err(e) => return Err((state.socket, state.buf, e)),
+                    Ok(None) => {
+                        state.monitor = Some(state.socket.handle.monitor(Interest::Write));
+                    }
+                    Ok(Some(size)) => return Ok(Async::Ready((state.socket, state.buf, size))),
                 }
-            }
-        } else {
-            let result = state.socket.handle.inner().send_to(state.buf.as_ref(), &state.target);
-            match result {
-                Err(e) => Err((state.socket, state.buf, e)),
-                Ok(None) => {
-                    state.monitor = Some(state.socket.handle.monitor(Interest::Write));
-                    self.0 = Some(state);
-                    Ok(Async::NotReady)
-                }
-                Ok(Some(size)) => Ok(Async::Ready((state.socket, state.buf, size))),
             }
         }
     }
@@ -191,34 +188,33 @@ impl<B: AsMut<[u8]>> Future for RecvFrom<B> {
     type Error = (UdpSocket, B, io::Error);
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let mut state = self.0.take().expect("Cannot poll RecvFrom twice");
-        if let Some(mut monitor) = state.monitor.take() {
-            match monitor.poll() {
-                Err(e) => Err((state.socket, state.buf, into_io_error(e))),
-                Ok(Async::NotReady) => {
-                    state.monitor = Some(monitor);
-                    self.0 = Some(state);
-                    Ok(Async::NotReady)
+        loop {
+            if let Some(mut monitor) = state.monitor.take() {
+                match monitor.poll() {
+                    Err(e) => return Err((state.socket, state.buf, into_io_error(e))),
+                    Ok(Async::NotReady) => {
+                        state.monitor = Some(monitor);
+                        self.0 = Some(state);
+                        return Ok(Async::NotReady);
+                    }
+                    Ok(Async::Ready(())) => {}
                 }
-                Ok(Async::Ready(())) => {
-                    self.0 = Some(state);
-                    self.poll()
+            } else {
+                let mut buf = state.buf;
+                let result = state.socket
+                    .handle
+                    .inner()
+                    .recv_from(buf.as_mut());
+                state.buf = buf;
+                match result {
+                    Err(e) => return Err((state.socket, state.buf, e)),
+                    Ok(None) => {
+                        state.monitor = Some(state.socket.handle.monitor(Interest::Read));
+                    }
+                    Ok(Some((size, addr))) => {
+                        return Ok(Async::Ready((state.socket, state.buf, size, addr)))
+                    }
                 }
-            }
-        } else {
-            let mut buf = state.buf;
-            let result = state.socket
-                .handle
-                .inner()
-                .recv_from(buf.as_mut());
-            state.buf = buf;
-            match result {
-                Err(e) => Err((state.socket, state.buf, e)),
-                Ok(None) => {
-                    state.monitor = Some(state.socket.handle.monitor(Interest::Read));
-                    self.0 = Some(state);
-                    Ok(Async::NotReady)
-                }
-                Ok(Some((size, addr))) => Ok(Async::Ready((state.socket, state.buf, size, addr))),
             }
         }
     }
