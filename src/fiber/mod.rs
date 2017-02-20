@@ -124,6 +124,11 @@ impl Spawn for BoxSpawn {
     fn spawn_boxed(&self, fiber: BoxFuture<(), ()>) {
         (self.0)(fiber);
     }
+    fn boxed(self) -> BoxSpawn
+        where Self: Sized + Send + 'static
+    {
+        self
+    }
 }
 impl fmt::Debug for BoxSpawn {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
