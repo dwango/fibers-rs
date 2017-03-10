@@ -1,6 +1,16 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
+
+// pub trait TimeoutExt: Sized {
+//     fn timeout(self, duration: Duration) -> BoxFuture<Self::Item, Option<Self::Error>>;
+// }
+// impl <T:Future> TimeoutExt for T {
+//     fn timeout(self, duration: Duration) -> BoxFuture<Self::Item, Option<Self::Error>> {
+//         panic!()
+//     }
+// }
+
 //! Time related functionalities.
 pub mod timer {
     //! Timer
@@ -10,6 +20,40 @@ pub mod timer {
 
     use internal::io_poll;
     use fiber;
+
+    /// A timer related extension of the `Future` trait.
+    pub trait TimerExt: Sized + Future {
+        /// Adds the specified timeout to this future.
+        fn timeout_after(self, duration: time::Duration) -> TimeoutAfter<Self> {
+            TimeoutAfter {
+                future: self,
+                timeout: timeout(duration),
+            }
+        }
+    }
+    impl<T: Future> TimerExt for T {}
+
+    /// A future which will try executing `T` within the specified time duration.
+    ///
+    /// If the timeout duration passes, it will return `Err(None)`.
+    /// If an error occurres before the expiration time, this will result in `Err(Some(T::Error))`.
+    pub struct TimeoutAfter<T> {
+        future: T,
+        timeout: Timeout,
+    }
+    impl<T: Future> Future for TimeoutAfter<T> {
+        type Item = T::Item;
+        type Error = Option<T::Error>;
+        fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+            if let Async::Ready(value) = self.future.poll().map_err(Some)? {
+                Ok(Async::Ready(value))
+            } else if let Ok(Async::NotReady) = self.timeout.poll() {
+                Ok(Async::NotReady)
+            } else {
+                Err(None)
+            }
+        }
+    }
 
     /// A future which will expire at the specified time instant.
     ///
@@ -58,13 +102,25 @@ pub mod timer {
     #[cfg(test)]
     mod test {
         use std::time::Duration;
-        use futures::{Future, Async};
+        use futures::{self, Future, Async};
         use super::*;
 
         #[test]
         fn it_works() {
             let mut timeout = timeout(Duration::from_secs(0));
             assert_eq!(timeout.poll(), Ok(Async::Ready(())));
+        }
+
+        #[test]
+        fn timeout_after_works() {
+            let mut future = futures::empty::<(), ()>().timeout_after(Duration::from_secs(0));
+            assert_eq!(future.poll(), Err(None));
+
+            let mut future = futures::finished::<(), ()>(()).timeout_after(Duration::from_secs(1));
+            assert_eq!(future.poll(), Ok(Async::Ready(())));
+
+            let mut future = futures::failed::<(), ()>(()).timeout_after(Duration::from_secs(1));
+            assert_eq!(future.poll(), Err(Some(())));
         }
     }
 }
