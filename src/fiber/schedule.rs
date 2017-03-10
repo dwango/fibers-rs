@@ -5,7 +5,7 @@ use std::sync::atomic;
 use std::collections::{HashMap, VecDeque};
 use std::sync::mpsc as std_mpsc;
 use std::cell::RefCell;
-use futures::BoxFuture;
+use futures::{BoxFuture, Poll, Async};
 
 use fiber;
 use internal::fiber::Task;
@@ -148,9 +148,7 @@ impl Scheduler {
             });
             let fiber = assert_some!(self.fibers.get_mut(&fiber_id));
             finished = fiber.run_once();
-            CURRENT_CONTEXT.with(|context| {
-                context.borrow_mut().fiber = None;
-            });
+            CURRENT_CONTEXT.with(|context| { context.borrow_mut().fiber = None; });
             fiber.is_runnable()
         };
         if finished {
@@ -243,6 +241,56 @@ impl<'a> Context<'a> {
     pub fn poller(&mut self) -> &mut poll::PollerHandle {
         &mut self.scheduler.poller
     }
+}
+
+/// Cooperatively gives up a poll for the current future (fiber).
+///
+/// # Examples
+///
+/// ```
+/// # extern crate fibers;
+/// # extern crate futures;
+/// use fibers::{fiber, Executor, InPlaceExecutor, Spawn};
+/// use futures::{Future, Async, Poll};
+///
+/// struct HeavyCalculation {
+///     polled_count: usize,
+///     loops: usize
+/// }
+/// impl HeavyCalculation {
+///     fn new(loop_count: usize) -> Self {
+///         HeavyCalculation { polled_count: 0, loops: loop_count }
+///     }
+/// }
+/// impl Future for HeavyCalculation {
+///     type Item = usize;
+///     type Error = ();
+///     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+///         self.polled_count += 1;
+///
+///         let mut per_poll_loop_limit = 10;
+///         while self.loops > 0 {
+///             self.loops -= 1;
+///             per_poll_loop_limit -= 1;
+///             if per_poll_loop_limit == 0 {
+///                 // Suspends calculation and gives execution to other fibers.
+///                 return fiber::yield_poll();
+///             }
+///         }
+///         Ok(Async::Ready(self.polled_count))
+///     }
+/// }
+///
+/// # fn main() {
+/// let mut executor = InPlaceExecutor::new().unwrap();
+/// let monitor = executor.spawn_monitor(HeavyCalculation::new(100));
+/// let result = executor.run_fiber(monitor).unwrap();
+/// assert_eq!(result, Ok(11));
+/// # }
+/// ```
+pub fn yield_poll<T, E>() -> Poll<T, E> {
+    with_current_context(|mut context| context.fiber.yield_once());
+    Ok(Async::NotReady)
 }
 
 // TODO: rename
