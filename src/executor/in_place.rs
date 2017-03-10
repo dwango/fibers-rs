@@ -65,7 +65,7 @@ impl Executor for InPlaceExecutor {
         InPlaceExecutorHandle { scheduler: self.scheduler.handle() }
     }
     fn run_once(&mut self) -> io::Result<()> {
-        self.scheduler.run_once();
+        self.scheduler.run_once(false);
         self.poller.poll(Some(time::Duration::from_millis(1)))?;
         Ok(())
     }

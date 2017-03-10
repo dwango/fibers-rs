@@ -179,9 +179,7 @@ impl SchedulerPool {
             links.push(link0);
             schedulers.push(scheduler.handle());
             thread::spawn(move || while let Ok(Async::NotReady) = link1.poll() {
-                if !scheduler.run_once() {
-                    thread::sleep(time::Duration::from_millis(1));
-                }
+                scheduler.run_once(true);
             });
         }
         SchedulerPool {

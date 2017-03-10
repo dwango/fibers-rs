@@ -87,28 +87,33 @@ impl Scheduler {
     }
 
     /// Runs one unit of works.
-    ///
-    /// If the scheduler does something, it will return `true` otherwise `false`.
-    pub fn run_once(&mut self) -> bool {
+    pub fn run_once(&mut self, block_if_idle: bool) {
         let mut did_something = false;
-
-        // Request
-        match self.request_rx.try_recv() {
-            Err(std_mpsc::TryRecvError::Empty) => {}
-            Err(std_mpsc::TryRecvError::Disconnected) => unreachable!(),
-            Ok(request) => {
-                did_something = true;
-                self.handle_request(request);
+        loop {
+            // Request
+            match self.request_rx.try_recv() {
+                Err(std_mpsc::TryRecvError::Empty) => {}
+                Err(std_mpsc::TryRecvError::Disconnected) => unreachable!(),
+                Ok(request) => {
+                    did_something = true;
+                    self.handle_request(request);
+                }
             }
-        }
 
-        // Task
-        if let Some(fiber_id) = self.next_runnable() {
+            // Task
+            if let Some(fiber_id) = self.next_runnable() {
+                did_something = true;
+                self.run_fiber(fiber_id);
+            }
+
+            if !block_if_idle || did_something {
+                break;
+            }
+
+            let request = self.request_rx.recv().expect("must succeed");
             did_something = true;
-            self.run_fiber(fiber_id);
+            self.handle_request(request);
         }
-
-        did_something
     }
 
     fn handle_request(&mut self, request: Request) {
