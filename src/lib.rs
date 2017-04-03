@@ -189,6 +189,8 @@ extern crate handy_async;
 #[macro_use]
 extern crate lazy_static;
 
+extern crate tokio_core;
+
 macro_rules! assert_some {
     ($e:expr) => {
         $e.expect(&format!("[{}:{}] {:?} must be a Some(..)",

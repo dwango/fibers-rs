@@ -14,6 +14,8 @@ use sync::oneshot::{Monitor, MonitorError};
 mod in_place;
 mod thread_pool;
 
+mod tokio;
+
 /// The `Executor` trait allows for spawning and executing fibers.
 pub trait Executor: Sized {
     /// The handle type of the executor.
