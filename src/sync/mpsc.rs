@@ -61,12 +61,10 @@
 //! an object shared with the senders.
 //! If a corresponding sender finds there is a waiting receiver,
 //! it will resume (reschedule) the fiber, after sending a message.
-use std::sync::Arc;
 use std::sync::mpsc as std_mpsc;
 use futures::{Poll, Async, Stream, Sink, StartSend, AsyncSink};
 
-use fiber;
-use internal::sync_atomic::AtomicCell;
+use super::Notifier;
 
 /// Creates a new asynchronous channel, returning the sender/receiver halves.
 ///
@@ -239,34 +237,5 @@ impl<T> Clone for SyncSender<T> {
 impl<T> Drop for SyncSender<T> {
     fn drop(&mut self) {
         self.notifier.notify();
-    }
-}
-
-#[derive(Debug, Clone)]
-struct Notifier {
-    unpark: Arc<AtomicCell<Option<fiber::Unpark>>>,
-}
-impl Notifier {
-    pub fn new() -> Self {
-        Notifier { unpark: Arc::new(AtomicCell::new(None)) }
-    }
-    pub fn await(&mut self) {
-        loop {
-            if let Some(mut unpark) = self.unpark.try_borrow_mut() {
-                let context_id = fiber::with_current_context(|c| c.context_id());
-                if unpark.as_ref().map(|u| u.context_id()) != context_id {
-                    *unpark = fiber::with_current_context(|mut c| c.park());
-                }
-                return;
-            }
-        }
-    }
-    pub fn notify(&self) {
-        loop {
-            if let Some(mut unpark) = self.unpark.try_borrow_mut() {
-                *unpark = None;
-                return;
-            }
-        }
     }
 }

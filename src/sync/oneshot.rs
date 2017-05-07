@@ -18,9 +18,10 @@
 use std::fmt;
 use std::error;
 use std::sync::mpsc::{RecvError, SendError};
-use futures::{Poll, Async, Future, Stream};
+use futures::{Poll, Async, Future};
+use nbchan;
 
-use sync::mpsc;
+use super::Notifier;
 
 /// Creates a new asynchronous oneshot channel, returning the sender/receiver halves.
 ///
@@ -65,21 +66,34 @@ use sync::mpsc;
 /// # }
 /// ```
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
-    let (tx, rx) = mpsc::channel();
-    (Sender(tx), Receiver(rx))
+    let notifier = Notifier::new();
+    let (tx, rx) = nbchan::oneshot::channel();
+    (Sender {
+         inner: tx,
+         notifier: notifier.clone(),
+     },
+     Receiver {
+         inner: rx,
+         notifier,
+     })
 }
 
 /// The sending-half of an asynchronous oneshot channel.
 ///
 /// This structure can be used on both inside and outside of a fiber.
 #[derive(Debug)]
-pub struct Sender<T>(mpsc::Sender<T>);
+pub struct Sender<T> {
+    inner: nbchan::oneshot::Sender<T>,
+    notifier: Notifier,
+}
 impl<T> Sender<T> {
     /// Sends a value on this asynchronous channel.
     ///
     /// This method will never block the current thread.
     pub fn send(self, t: T) -> Result<(), SendError<T>> {
-        self.0.send(t)
+        self.inner.send(t)?;
+        self.notifier.notify();
+        Ok(())
     }
 }
 
@@ -87,15 +101,21 @@ impl<T> Sender<T> {
 ///
 /// This structure can be used on both inside and outside of a fiber.
 #[derive(Debug)]
-pub struct Receiver<T>(mpsc::Receiver<T>);
+pub struct Receiver<T> {
+    inner: nbchan::oneshot::Receiver<T>,
+    notifier: Notifier,
+}
 impl<T> Future for Receiver<T> {
     type Item = T;
     type Error = RecvError;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match assert_ok!(self.0.poll()) {
-            Async::NotReady => Ok(Async::NotReady),
-            Async::Ready(None) => Err(RecvError),
-            Async::Ready(Some(t)) => Ok(Async::Ready(t)),
+        match self.inner.try_recv() {
+            Err(nbchan::oneshot::TryRecvError::Empty) => {
+                self.notifier.await();
+                Ok(Async::NotReady)
+            }
+            Err(nbchan::oneshot::TryRecvError::Disconnected) => Err(RecvError),
+            Ok(t) => Ok(Async::Ready(t)),
         }
     }
 }

@@ -16,6 +16,7 @@ futures = "0.1"
 splay_tree = "0.2"
 num_cpus = "1"
 handy_async = "0.2"
+nbchan = "0.1"
 
 [dev-dependencies]
 clap = "2"

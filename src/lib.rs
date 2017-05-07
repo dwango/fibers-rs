@@ -190,6 +190,7 @@ extern crate futures;
 extern crate splay_tree;
 extern crate num_cpus;
 extern crate handy_async;
+extern crate nbchan;
 
 macro_rules! assert_some {
     ($e:expr) => {
