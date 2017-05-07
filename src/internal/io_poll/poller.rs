@@ -46,12 +46,12 @@ impl Registrant {
     }
     pub fn mio_interest(&self) -> mio::Ready {
         (if self.read_waitings.is_empty() {
-             mio::Ready::none()
+             mio::Ready::empty()
          } else {
              mio::Ready::readable()
          }) |
         (if self.write_waitings.is_empty() {
-             mio::Ready::none()
+             mio::Ready::empty()
          } else {
              mio::Ready::writable()
          })
@@ -144,10 +144,10 @@ impl Poller {
         let _ = self.poll.poll(&mut self.events.0, timeout)?;
         for e in self.events.0.iter() {
             let r = assert_some!(self.registrants.get_mut(&e.token()));
-            if e.kind().is_readable() {
+            if e.readiness().is_readable() {
                 for _ in r.read_waitings.drain(..).map(|tx| tx.exit(Ok(()))) {}
             }
-            if e.kind().is_writable() {
+            if e.readiness().is_writable() {
                 for _ in r.write_waitings.drain(..).map(|tx| tx.exit(Ok(()))) {}
             }
             Self::mio_register(&self.poll, e.token(), r)?;
@@ -200,7 +200,7 @@ impl Poller {
     }
     fn mio_register(poll: &mio::Poll, token: mio::Token, r: &mut Registrant) -> io::Result<()> {
         let interest = r.mio_interest();
-        if interest != mio::Ready::none() {
+        if interest != mio::Ready::empty() {
             let options = mio::PollOpt::edge() | mio::PollOpt::oneshot();
             if r.is_first {
                 r.is_first = false;

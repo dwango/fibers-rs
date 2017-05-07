@@ -57,12 +57,12 @@ use super::{into_io_error, Bind};
 /// ```
 #[derive(Debug, Clone)]
 pub struct UdpSocket {
-    handle: EventedHandle<mio::udp::UdpSocket>,
+    handle: EventedHandle<mio::net::UdpSocket>,
 }
 impl UdpSocket {
     /// Makes a future to create a UDP socket binded to the given address.
     pub fn bind(addr: SocketAddr) -> UdpSocketBind {
-        UdpSocketBind(Bind::Bind(addr, mio::udp::UdpSocket::bind))
+        UdpSocketBind(Bind::Bind(addr, mio::net::UdpSocket::bind))
     }
 
     /// Makes a future to send data on the socket to the given address.
@@ -100,7 +100,7 @@ impl UdpSocket {
 
     /// Calls `f` with the reference to the inner socket.
     pub unsafe fn with_inner<F, T>(&self, f: F) -> T
-        where F: FnOnce(&mio::udp::UdpSocket) -> T
+        where F: FnOnce(&mio::net::UdpSocket) -> T
     {
         f(&*self.handle.inner())
     }
@@ -115,8 +115,8 @@ impl UdpSocket {
 ///
 /// If the future is polled on the outside of a fiber, it may crash.
 #[derive(Debug)]
-pub struct UdpSocketBind(Bind<fn(&SocketAddr) -> io::Result<mio::udp::UdpSocket>,
-                               mio::udp::UdpSocket>);
+pub struct UdpSocketBind(Bind<fn(&SocketAddr) -> io::Result<mio::net::UdpSocket>,
+                               mio::net::UdpSocket>);
 impl Future for UdpSocketBind {
     type Item = UdpSocket;
     type Error = io::Error;
@@ -160,11 +160,14 @@ impl<B: AsRef<[u8]>> Future for SendTo<B> {
                     .inner()
                     .send_to(state.buf.as_ref(), &state.target);
                 match result {
-                    Err(e) => return Err((state.socket, state.buf, e)),
-                    Ok(None) => {
-                        state.monitor = Some(state.socket.handle.monitor(Interest::Write));
+                    Err(e) => {
+                        if e.kind() == io::ErrorKind::WouldBlock {
+                            state.monitor = Some(state.socket.handle.monitor(Interest::Write));
+                        } else {
+                            return Err((state.socket, state.buf, e));
+                        }
                     }
-                    Ok(Some(size)) => return Ok(Async::Ready((state.socket, state.buf, size))),
+                    Ok(size) => return Ok(Async::Ready((state.socket, state.buf, size))),
                 }
             }
         }
@@ -210,11 +213,14 @@ impl<B: AsMut<[u8]>> Future for RecvFrom<B> {
                 let result = state.socket.handle.inner().recv_from(buf.as_mut());
                 state.buf = buf;
                 match result {
-                    Err(e) => return Err((state.socket, state.buf, e)),
-                    Ok(None) => {
-                        state.monitor = Some(state.socket.handle.monitor(Interest::Read));
+                    Err(e) => {
+                        if e.kind() == io::ErrorKind::WouldBlock {
+                            state.monitor = Some(state.socket.handle.monitor(Interest::Read));
+                        } else {
+                            return Err((state.socket, state.buf, e));
+                        }
                     }
-                    Ok(Some((size, addr))) => {
+                    Ok((size, addr)) => {
                         return Ok(Async::Ready((state.socket, state.buf, size, addr)))
                     }
                 }
