@@ -92,20 +92,21 @@ pub trait Spawn {
               E: Send + 'static
     {
         let (link0, link1) = oneshot::link();
-        let future = f.select_either(link1).then(|result| {
-            match result {
-                Err(Either::A((result, link1))) => {
-                    link1.exit(Err(result));
+        let future = f.select_either(link1)
+            .then(|result| {
+                match result {
+                    Err(Either::A((result, link1))) => {
+                        link1.exit(Err(result));
+                    }
+                    Ok(Either::A((result, link1))) => {
+                        link1.exit(Ok(result));
+                    }
+                    _ => {
+                        // Disconnected by `link0`
+                    }
                 }
-                Ok(Either::A((result, link1))) => {
-                    link1.exit(Ok(result));
-                }
-                _ => {
-                    // Disconnected by `link0`
-                }
-            }
-            Ok(())
-        });
+                Ok(())
+            });
         self.spawn(future);
         link0
     }

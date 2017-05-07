@@ -82,13 +82,13 @@ impl ThreadPoolExecutor {
         let schedulers = SchedulerPool::new(&pollers);
         let (tx, rx) = std_mpsc::channel();
         Ok(ThreadPoolExecutor {
-            pool: schedulers,
-            pollers: pollers,
-            spawn_tx: tx,
-            spawn_rx: rx,
-            round: 0,
-            steps: 0,
-        })
+               pool: schedulers,
+               pollers: pollers,
+               spawn_tx: tx,
+               spawn_rx: rx,
+               round: 0,
+               steps: 0,
+           })
     }
 }
 impl Executor for ThreadPoolExecutor {
@@ -150,17 +150,17 @@ impl PollerPool {
             links.push(link0);
             pollers.push(poller.handle());
             thread::spawn(move || while let Ok(Async::NotReady) = link1.poll() {
-                let timeout = time::Duration::from_millis(1);
-                if let Err(e) = poller.poll(Some(timeout)) {
-                    link1.exit(Err(e));
-                    return;
-                }
-            });
+                              let timeout = time::Duration::from_millis(1);
+                              if let Err(e) = poller.poll(Some(timeout)) {
+                                  link1.exit(Err(e));
+                                  return;
+                              }
+                          });
         }
         Ok(PollerPool {
-            pollers: pollers,
-            links: links,
-        })
+               pollers: pollers,
+               links: links,
+           })
     }
 }
 
@@ -179,8 +179,8 @@ impl SchedulerPool {
             links.push(link0);
             schedulers.push(scheduler.handle());
             thread::spawn(move || while let Ok(Async::NotReady) = link1.poll() {
-                scheduler.run_once(true);
-            });
+                              scheduler.run_once(true);
+                          });
         }
         SchedulerPool {
             schedulers: schedulers,

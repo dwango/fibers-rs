@@ -68,20 +68,20 @@ impl UdpSocket {
     /// Makes a future to send data on the socket to the given address.
     pub fn send_to<B: AsRef<[u8]>>(self, buf: B, target: SocketAddr) -> SendTo<B> {
         SendTo(Some(SendToInner {
-            socket: self,
-            buf: buf,
-            target: target,
-            monitor: None,
-        }))
+                        socket: self,
+                        buf: buf,
+                        target: target,
+                        monitor: None,
+                    }))
     }
 
     /// Makes a future to receive data from the socket.
     pub fn recv_from<B: AsMut<[u8]>>(self, buf: B) -> RecvFrom<B> {
         RecvFrom(Some(RecvFromInner {
-            socket: self,
-            buf: buf,
-            monitor: None,
-        }))
+                          socket: self,
+                          buf: buf,
+                          monitor: None,
+                      }))
     }
 
     /// Returns the socket address that this socket was created from.
@@ -116,12 +116,14 @@ impl UdpSocket {
 /// If the future is polled on the outside of a fiber, it may crash.
 #[derive(Debug)]
 pub struct UdpSocketBind(Bind<fn(&SocketAddr) -> io::Result<mio::udp::UdpSocket>,
-                              mio::udp::UdpSocket>);
+                               mio::udp::UdpSocket>);
 impl Future for UdpSocketBind {
     type Item = UdpSocket;
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        Ok(self.0.poll()?.map(|handle| UdpSocket { handle: handle }))
+        Ok(self.0
+               .poll()?
+               .map(|handle| UdpSocket { handle: handle }))
     }
 }
 
@@ -152,7 +154,11 @@ impl<B: AsRef<[u8]>> Future for SendTo<B> {
                     Ok(Async::Ready(())) => {}
                 }
             } else {
-                let result = state.socket.handle.inner().send_to(state.buf.as_ref(), &state.target);
+                let result = state
+                    .socket
+                    .handle
+                    .inner()
+                    .send_to(state.buf.as_ref(), &state.target);
                 match result {
                     Err(e) => return Err((state.socket, state.buf, e)),
                     Ok(None) => {
@@ -201,10 +207,7 @@ impl<B: AsMut<[u8]>> Future for RecvFrom<B> {
                 }
             } else {
                 let mut buf = state.buf;
-                let result = state.socket
-                    .handle
-                    .inner()
-                    .recv_from(buf.as_mut());
+                let result = state.socket.handle.inner().recv_from(buf.as_mut());
                 state.buf = buf;
                 match result {
                     Err(e) => return Err((state.socket, state.buf, e)),

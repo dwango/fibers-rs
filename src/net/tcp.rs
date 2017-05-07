@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 use futures::{Poll, Async, Future, Stream};
 use mio;
 
-use fiber;
+use fiber::{self, Context};
 use internal::io_poll::{EventedHandle, Interest, Register};
 use sync::oneshot::Monitor;
 use super::{into_io_error, Bind};
@@ -107,17 +107,19 @@ impl TcpListener {
 /// If the future is polled on the outside of a fiber, it may crash.
 #[derive(Debug)]
 pub struct TcpListenerBind(Bind<fn(&SocketAddr) -> io::Result<mio::tcp::TcpListener>,
-                                mio::tcp::TcpListener>);
+                                 mio::tcp::TcpListener>);
 impl Future for TcpListenerBind {
     type Item = TcpListener;
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        Ok(self.0.poll()?.map(|handle| {
-            TcpListener {
-                handle: handle,
-                monitor: None,
-            }
-        }))
+        Ok(self.0
+               .poll()?
+               .map(|handle| {
+                        TcpListener {
+                            handle: handle,
+                            monitor: None,
+                        }
+                    }))
     }
 }
 
@@ -144,10 +146,9 @@ impl Stream for Incoming {
             } else {
                 match self.0.handle.inner().accept() {
                     Ok((stream, addr)) => {
-                        let register = assert_some!(fiber::with_current_context(|mut c| {
-                            c.poller().register(stream)
-                        }));
-                        let stream = Connected(Some(register));
+                        let register = |mut c: Context| c.poller().register(stream);
+                        let future = assert_some!(fiber::with_current_context(register));
+                        let stream = Connected(Some(future));
                         return Ok(Async::Ready(Some((stream, addr))));
                     }
                     Err(e) => {
@@ -318,8 +319,9 @@ impl TcpStream {
             *self.monitor(interest) = Some(self.handle.monitor(interest));
             if let Err(e) = self.monitor(interest).poll() {
                 return Err(e.unwrap_or_else(|| {
-                    io::Error::new(io::ErrorKind::Other, "Monitor channel disconnected")
-                }));
+                                                io::Error::new(io::ErrorKind::Other,
+                                                               "Monitor channel disconnected")
+                                            }));
             }
             Ok(true)
         } else {

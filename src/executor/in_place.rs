@@ -54,9 +54,9 @@ impl InPlaceExecutor {
     pub fn new() -> io::Result<Self> {
         let poller = poll::Poller::new()?;
         Ok(InPlaceExecutor {
-            scheduler: fiber::Scheduler::new(poller.handle()),
-            poller: poller,
-        })
+               scheduler: fiber::Scheduler::new(poller.handle()),
+               poller: poller,
+           })
     }
 }
 impl Executor for InPlaceExecutor {

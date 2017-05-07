@@ -1,16 +1,6 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
-
-// pub trait TimeoutExt: Sized {
-//     fn timeout(self, duration: Duration) -> BoxFuture<Self::Item, Option<Self::Error>>;
-// }
-// impl <T:Future> TimeoutExt for T {
-//     fn timeout(self, duration: Duration) -> BoxFuture<Self::Item, Option<Self::Error>> {
-//         panic!()
-//     }
-// }
-
 //! Time related functionalities.
 pub mod timer {
     //! Timer
@@ -19,7 +9,7 @@ pub mod timer {
     use futures::{Future, Poll, Async};
 
     use internal::io_poll;
-    use fiber;
+    use fiber::{self, Context};
 
     /// A timer related extension of the `Future` trait.
     pub trait TimerExt: Sized + Future {
@@ -82,14 +72,17 @@ pub mod timer {
             if let Some(ref mut inner) = self.inner {
                 inner.poll()
             } else {
+                let duration = self.duration;
                 let elapsed = self.start.elapsed();
-                if elapsed >= self.duration {
+                if elapsed >= duration {
                     return Ok(Async::Ready(()));
                 }
-                if let Some(inner) = fiber::with_current_context(|mut c| {
-                    let rest = self.duration - elapsed;
+
+                let set_timeout = |mut c: Context| {
+                    let rest = duration - elapsed;
                     io_poll::poller::set_timeout(c.poller(), rest)
-                }) {
+                };
+                if let Some(inner) = fiber::with_current_context(set_timeout) {
                     self.inner = Some(inner);
                     self.poll()
                 } else {

@@ -46,15 +46,15 @@ impl Registrant {
     }
     pub fn mio_interest(&self) -> mio::Ready {
         (if self.read_waitings.is_empty() {
-            mio::Ready::none()
-        } else {
-            mio::Ready::readable()
-        }) |
+             mio::Ready::none()
+         } else {
+             mio::Ready::readable()
+         }) |
         (if self.write_waitings.is_empty() {
-            mio::Ready::none()
-        } else {
-            mio::Ready::writable()
-        })
+             mio::Ready::none()
+         } else {
+             mio::Ready::writable()
+         })
     }
 }
 
@@ -87,15 +87,15 @@ impl Poller {
         let poll = mio::Poll::new()?;
         let (tx, rx) = std_mpsc::channel();
         Ok(Poller {
-            poll: poll,
-            events: MioEvents(mio::Events::with_capacity(capacity)),
-            request_tx: tx,
-            request_rx: rx,
-            next_token: 0,
-            next_timeout_id: Arc::new(AtomicUsize::new(0)),
-            registrants: HashMap::new(),
-            timeout_queue: HeapMap::new(),
-        })
+               poll: poll,
+               events: MioEvents(mio::Events::with_capacity(capacity)),
+               request_tx: tx,
+               request_rx: rx,
+               next_token: 0,
+               next_timeout_id: Arc::new(AtomicUsize::new(0)),
+               registrants: HashMap::new(),
+               timeout_queue: HeapMap::new(),
+           })
     }
 
     /// Makes a future to register new evented object to the poller.
@@ -189,7 +189,8 @@ impl Poller {
                 }
             }
             Request::SetTimeout(timeout_id, expiry_time, reply) => {
-                assert!(self.timeout_queue.push_if_absent((expiry_time, timeout_id), reply));
+                assert!(self.timeout_queue
+                            .push_if_absent((expiry_time, timeout_id), reply));
             }
             Request::CancelTimeout(timeout_id, expiry_time) => {
                 self.timeout_queue.remove(&(expiry_time, timeout_id));
@@ -244,11 +245,13 @@ impl PollerHandle {
         let request_tx = self.request_tx.clone();
         let (tx, rx) = oneshot::channel();
         let mut reply = Some(move |token| {
-            let handle = EventedHandle::new(evented, request_tx, token);
-            let _ = tx.send(handle);
-        });
+                                 let handle = EventedHandle::new(evented, request_tx, token);
+                                 let _ = tx.send(handle);
+                             });
         let reply = RegisterReplyFn(Box::new(move |token| (reply.take().unwrap())(token)));
-        if self.request_tx.send(Request::Register(box_evented, reply)).is_err() {
+        if self.request_tx
+               .send(Request::Register(box_evented, reply))
+               .is_err() {
             self.is_alive = false;
         }
         Register { rx: rx }
@@ -257,15 +260,16 @@ impl PollerHandle {
     fn set_timeout(&self, delay_from_now: time::Duration) -> Timeout {
         let (tx, rx) = oneshot::channel();
         let expiry_time = time::Instant::now() + delay_from_now;
-        let timeout_id = self.next_timeout_id.fetch_add(1, atomic::Ordering::SeqCst);
+        let timeout_id = self.next_timeout_id
+            .fetch_add(1, atomic::Ordering::SeqCst);
         let request = Request::SetTimeout(timeout_id, expiry_time.clone(), tx);
         let _ = self.request_tx.send(request);
         Timeout {
             cancel: Some(CancelTimeout {
-                timeout_id: timeout_id,
-                expiry_time: expiry_time,
-                request_tx: self.request_tx.clone(),
-            }),
+                             timeout_id: timeout_id,
+                             expiry_time: expiry_time,
+                             request_tx: self.request_tx.clone(),
+                         }),
             rx: rx,
         }
     }
@@ -283,7 +287,8 @@ struct CancelTimeout {
 }
 impl CancelTimeout {
     pub fn cancel(self) {
-        let _ = self.request_tx.send(Request::CancelTimeout(self.timeout_id, self.expiry_time));
+        let _ = self.request_tx
+            .send(Request::CancelTimeout(self.timeout_id, self.expiry_time));
     }
 }
 
@@ -353,7 +358,8 @@ impl<T: mio::Evented> EventedHandle<T> {
     /// Monitors occurrence of an event specified by `interest`.
     pub fn monitor(&self, interest: Interest) -> oneshot::Monitor<(), io::Error> {
         let (monitored, monitor) = oneshot::monitor();
-        let _ = self.request_tx.send(Request::Monitor(self.token, interest, monitored));
+        let _ = self.request_tx
+            .send(Request::Monitor(self.token, interest, monitored));
         monitor
     }
 
