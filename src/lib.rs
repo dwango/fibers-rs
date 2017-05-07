@@ -190,8 +190,6 @@ extern crate futures;
 extern crate splay_tree;
 extern crate num_cpus;
 extern crate handy_async;
-#[macro_use]
-extern crate lazy_static;
 
 macro_rules! assert_some {
     ($e:expr) => {
