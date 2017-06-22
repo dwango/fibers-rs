@@ -1,20 +1,28 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
+//! I/O events polling functionalities (for developers).
+//!
+//! This module is mainly exported for developers.
+//! So, usual users do not need to be conscious.
+//!
+//! # Implementation Details
+//!
+//! This module is a wrapper of the [mio](https://github.com/carllerche/mio) crate.
 use std::io;
 use std::ops;
 use std::sync::Arc;
 use mio;
 
-pub use self::poller::{Poller, PollerHandle, Timeout, EventedHandle};
-pub use self::poller::Register;
+pub use self::poller::{Poller, PollerHandle, EventedHandle};
+pub use self::poller::{Register, DEFAULT_EVENTS_CAPACITY};
 
-use internal::sync_atomic::{AtomicCell, AtomicBorrowMut};
+use sync_atomic::{AtomicCell, AtomicBorrowMut};
 
-pub mod poller;
+pub(crate) mod poller;
 
 #[derive(Debug)]
-pub struct SharableEvented<T>(Arc<AtomicCell<T>>);
+pub(crate) struct SharableEvented<T>(Arc<AtomicCell<T>>);
 impl<T> SharableEvented<T>
 where
     T: mio::Evented,

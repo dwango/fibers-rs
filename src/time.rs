@@ -8,7 +8,7 @@ pub mod timer {
     use std::sync::mpsc as std_mpsc;
     use futures::{Future, Poll, Async};
 
-    use internal::io_poll;
+    use io::poll;
     use fiber::{self, Context};
 
     /// A timer related extension of the `Future` trait.
@@ -54,7 +54,7 @@ pub mod timer {
     pub struct Timeout {
         start: time::Instant,
         duration: time::Duration,
-        inner: Option<io_poll::Timeout>,
+        inner: Option<poll::poller::Timeout>,
     }
 
     /// Makes a future which will expire after `delay_from_now`.
@@ -80,7 +80,7 @@ pub mod timer {
 
                 let set_timeout = |mut c: Context| {
                     let rest = duration - elapsed;
-                    io_poll::poller::set_timeout(c.poller(), rest)
+                    poll::poller::set_timeout(c.poller(), rest)
                 };
                 if let Some(inner) = fiber::with_current_context(set_timeout) {
                     self.inner = Some(inner);

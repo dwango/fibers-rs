@@ -29,7 +29,7 @@ pub use self::udp::UdpSocket;
 pub use self::tcp::{TcpListener, TcpStream};
 
 use fiber;
-use internal::io_poll::{EventedHandle, Register};
+use io::poll::{EventedHandle, Register};
 
 pub mod futures {
     //! Implementations of `futures::Future` trait.

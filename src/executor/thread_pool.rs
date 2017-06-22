@@ -11,7 +11,7 @@ use futures::{Async, Future, BoxFuture};
 use fiber::{self, Spawn};
 use io::poll;
 use sync::oneshot::{self, Link};
-use internal::fiber::Task;
+use fiber::Task;
 use super::Executor;
 
 /// An executor that executes spawned fibers on pooled threads.

@@ -12,7 +12,7 @@ use futures::{self, Future};
 use mio;
 
 use sync::oneshot;
-use internal::collections::HeapMap;
+use collections::HeapMap;
 use super::{Interest, SharableEvented, EventedLock};
 
 type RequestSender = std_mpsc::Sender<Request>;

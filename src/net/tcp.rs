@@ -9,7 +9,7 @@ use mio;
 use mio::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 
 use fiber::{self, Context};
-use internal::io_poll::{EventedHandle, Interest, Register};
+use io::poll::{EventedHandle, Interest, Register};
 use sync::oneshot::Monitor;
 use super::{into_io_error, Bind};
 

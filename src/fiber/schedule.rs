@@ -7,9 +7,8 @@ use std::sync::mpsc as std_mpsc;
 use std::cell::RefCell;
 use futures::{BoxFuture, Poll, Async};
 
-use fiber;
-use internal::fiber::Task;
-use internal::io_poll as poll;
+use fiber::{self, Task};
+use io::poll;
 use super::{Spawn, FiberState};
 
 static mut NEXT_SCHEDULER_ID: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;

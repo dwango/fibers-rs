@@ -16,7 +16,6 @@ pub use self::schedule::{Scheduler, SchedulerHandle, SchedulerId};
 pub use self::schedule::{with_current_context, yield_poll, Context};
 
 use sync::oneshot::{self, Monitor, Link};
-use internal::fiber::Task;
 
 mod schedule;
 
@@ -219,5 +218,14 @@ impl Drop for Unpark {
         if old == 0 {
             self.scheduler.wakeup(self.fiber_id);
         }
+    }
+}
+
+pub(crate) type FiberFuture = BoxFuture<(), ()>;
+
+pub(crate) struct Task(pub FiberFuture);
+impl fmt::Debug for Task {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Task(_)")
     }
 }

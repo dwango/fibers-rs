@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 use futures::{Poll, Async, Future};
 use mio::net::UdpSocket as MioUdpSocket;
 
-use internal::io_poll::{Interest, EventedHandle};
+use io::poll::{Interest, EventedHandle};
 use sync::oneshot::Monitor;
 use super::{into_io_error, Bind};
 
