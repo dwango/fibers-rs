@@ -16,7 +16,8 @@ pub mod poller;
 #[derive(Debug)]
 pub struct SharableEvented<T>(Arc<AtomicCell<T>>);
 impl<T> SharableEvented<T>
-    where T: mio::Evented
+where
+    T: mio::Evented,
 {
     pub fn new(inner: T) -> Self {
         SharableEvented(Arc::new(AtomicCell::new(inner)))
@@ -37,22 +38,25 @@ impl<T> Clone for SharableEvented<T> {
     }
 }
 impl<T> mio::Evented for SharableEvented<T>
-    where T: mio::Evented
+where
+    T: mio::Evented,
 {
-    fn register(&self,
-                poll: &mio::Poll,
-                token: mio::Token,
-                interest: mio::Ready,
-                opts: mio::PollOpt)
-                -> io::Result<()> {
+    fn register(
+        &self,
+        poll: &mio::Poll,
+        token: mio::Token,
+        interest: mio::Ready,
+        opts: mio::PollOpt,
+    ) -> io::Result<()> {
         self.lock().register(poll, token, interest, opts)
     }
-    fn reregister(&self,
-                  poll: &mio::Poll,
-                  token: mio::Token,
-                  interest: mio::Ready,
-                  opts: mio::PollOpt)
-                  -> io::Result<()> {
+    fn reregister(
+        &self,
+        poll: &mio::Poll,
+        token: mio::Token,
+        interest: mio::Ready,
+        opts: mio::PollOpt,
+    ) -> io::Result<()> {
         self.lock().reregister(poll, token, interest, opts)
     }
     fn deregister(&self, poll: &mio::Poll) -> io::Result<()> {

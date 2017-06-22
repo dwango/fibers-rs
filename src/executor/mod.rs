@@ -26,9 +26,10 @@ pub trait Executor: Sized {
     fn run_once(&mut self) -> io::Result<()>;
 
     /// Runs until the monitored fiber exits.
-    fn run_fiber<T, E>(&mut self,
-                       monitor: Monitor<T, E>)
-                       -> io::Result<Result<T, MonitorError<E>>> {
+    fn run_fiber<T, E>(
+        &mut self,
+        monitor: Monitor<T, E>,
+    ) -> io::Result<Result<T, MonitorError<E>>> {
         self.run_future(monitor)
     }
 

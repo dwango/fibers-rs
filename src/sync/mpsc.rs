@@ -112,28 +112,32 @@ use super::Notifier;
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let notifier = Notifier::new();
     let (tx, rx) = std_mpsc::channel();
-    (Sender {
-         inner: tx,
-         notifier: notifier.clone(),
-     },
-     Receiver {
-         inner: rx,
-         notifier: notifier,
-     })
+    (
+        Sender {
+            inner: tx,
+            notifier: notifier.clone(),
+        },
+        Receiver {
+            inner: rx,
+            notifier: notifier,
+        },
+    )
 }
 
 /// Creates a new synchronous, bounded channel.
 pub fn sync_channel<T>(bound: usize) -> (SyncSender<T>, Receiver<T>) {
     let notifier = Notifier::new();
     let (tx, rx) = std_mpsc::sync_channel(bound);
-    (SyncSender {
-         inner: tx,
-         notifier: notifier.clone(),
-     },
-     Receiver {
-         inner: rx,
-         notifier: notifier,
-     })
+    (
+        SyncSender {
+            inner: tx,
+            notifier: notifier.clone(),
+        },
+        Receiver {
+            inner: rx,
+            notifier: notifier,
+        },
+    )
 }
 
 /// The receiving-half of a mpsc channel.

@@ -39,12 +39,10 @@ pub fn stdin() -> Stdin {
             // # (3) Read Phase
             let required_size = break_if_err!(req_rx.recv());
             let mut buf = vec![0; required_size];
-            let result = locked_stdin
-                .read(&mut buf)
-                .map(|read_size| {
-                         buf.truncate(read_size);
-                         buf
-                     });
+            let result = locked_stdin.read(&mut buf).map(|read_size| {
+                buf.truncate(read_size);
+                buf
+            });
             break_if_err!(res_tx.send(result));
         }
     });
@@ -86,13 +84,13 @@ impl Read for Stdin {
                             return Err(unexpected_eof());
                         };
                         return match result {
-                                   Err(e) => Err(e),
-                                   Ok(data) => {
-                            let read_size = data.len();
-                            buf[..read_size].copy_from_slice(&data[..]);
-                            Ok(read_size)
-                        }
-                               };
+                            Err(e) => Err(e),
+                            Ok(data) => {
+                                let read_size = data.len();
+                                buf[..read_size].copy_from_slice(&data[..]);
+                                Ok(read_size)
+                            }
+                        };
                     }
                 }
             }
@@ -105,8 +103,10 @@ fn would_block() -> io::Error {
 }
 
 fn unexpected_eof() -> io::Error {
-    io::Error::new(io::ErrorKind::UnexpectedEof,
-                   "I/O thread unexpectedly terminated")
+    io::Error::new(
+        io::ErrorKind::UnexpectedEof,
+        "I/O thread unexpectedly terminated",
+    )
 }
 
 fn into_io_error<E: error::Error + Send + Sync + 'static>(error: E) -> io::Error {

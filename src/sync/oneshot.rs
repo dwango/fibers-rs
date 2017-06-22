@@ -68,14 +68,16 @@ use super::Notifier;
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let notifier = Notifier::new();
     let (tx, rx) = nbchan::oneshot::channel();
-    (Sender {
-         inner: tx,
-         notifier: notifier.clone(),
-     },
-     Receiver {
-         inner: rx,
-         notifier,
-     })
+    (
+        Sender {
+            inner: tx,
+            notifier: notifier.clone(),
+        },
+        Receiver {
+            inner: rx,
+            notifier,
+        },
+    )
 }
 
 /// The sending-half of an asynchronous oneshot channel.
@@ -267,7 +269,8 @@ impl<E> MonitorError<E> {
     /// assert_eq!(e.map(|v| v.to_string()), MonitorError::Aborted);
     /// ```
     pub fn map<F, T>(self, f: F) -> MonitorError<T>
-        where F: FnOnce(E) -> T
+    where
+        F: FnOnce(E) -> T,
     {
         match self {
             MonitorError::Aborted => MonitorError::Aborted,
@@ -298,7 +301,8 @@ impl<E> MonitorError<E> {
     ///
     /// If `self` is `MonitorError::Aborted`, the result of `f()` will be returned.
     pub fn unwrap_or_else<F>(self, f: F) -> E
-        where F: FnOnce() -> E
+    where
+        F: FnOnce() -> E,
     {
         match self {
             MonitorError::Aborted => f(),
