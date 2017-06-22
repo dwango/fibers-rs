@@ -157,11 +157,13 @@ impl<T> Stream for Receiver<T> {
     type Error = ();
     type Item = T;
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        match self.inner.try_recv() {
-            Err(std_mpsc::TryRecvError::Empty) => {
-                self.notifier.await();
-                Ok(Async::NotReady)
-            }
+        let mut result = self.inner.try_recv();
+        if let Err(std_mpsc::TryRecvError::Empty) = result {
+            self.notifier.await();
+            result = self.inner.try_recv();
+        }
+        match result {
+            Err(std_mpsc::TryRecvError::Empty) => Ok(Async::NotReady),
             Err(std_mpsc::TryRecvError::Disconnected) => Ok(Async::Ready(None)),
             Ok(t) => Ok(Async::Ready(Some(t))),
         }
