@@ -4,9 +4,9 @@
 use std::io;
 use std::net::SocketAddr;
 use futures::{Poll, Async, Future};
-use mio;
+use mio::net::UdpSocket as MioUdpSocket;
 
-use internal::io_poll::{Interest, EventedHandle};
+use io::poll::{Interest, EventedHandle};
 use sync::oneshot::Monitor;
 use super::{into_io_error, Bind};
 
@@ -57,31 +57,31 @@ use super::{into_io_error, Bind};
 /// ```
 #[derive(Debug, Clone)]
 pub struct UdpSocket {
-    handle: EventedHandle<mio::net::UdpSocket>,
+    handle: EventedHandle<MioUdpSocket>,
 }
 impl UdpSocket {
     /// Makes a future to create a UDP socket binded to the given address.
     pub fn bind(addr: SocketAddr) -> UdpSocketBind {
-        UdpSocketBind(Bind::Bind(addr, mio::net::UdpSocket::bind))
+        UdpSocketBind(Bind::Bind(addr, MioUdpSocket::bind))
     }
 
     /// Makes a future to send data on the socket to the given address.
     pub fn send_to<B: AsRef<[u8]>>(self, buf: B, target: SocketAddr) -> SendTo<B> {
         SendTo(Some(SendToInner {
-                        socket: self,
-                        buf: buf,
-                        target: target,
-                        monitor: None,
-                    }))
+            socket: self,
+            buf: buf,
+            target: target,
+            monitor: None,
+        }))
     }
 
     /// Makes a future to receive data from the socket.
     pub fn recv_from<B: AsMut<[u8]>>(self, buf: B) -> RecvFrom<B> {
         RecvFrom(Some(RecvFromInner {
-                          socket: self,
-                          buf: buf,
-                          monitor: None,
-                      }))
+            socket: self,
+            buf: buf,
+            monitor: None,
+        }))
     }
 
     /// Returns the socket address that this socket was created from.
@@ -100,7 +100,8 @@ impl UdpSocket {
 
     /// Calls `f` with the reference to the inner socket.
     pub unsafe fn with_inner<F, T>(&self, f: F) -> T
-        where F: FnOnce(&mio::net::UdpSocket) -> T
+    where
+        F: FnOnce(&MioUdpSocket) -> T,
     {
         f(&*self.handle.inner())
     }
@@ -115,15 +116,12 @@ impl UdpSocket {
 ///
 /// If the future is polled on the outside of a fiber, it may crash.
 #[derive(Debug)]
-pub struct UdpSocketBind(Bind<fn(&SocketAddr) -> io::Result<mio::net::UdpSocket>,
-                               mio::net::UdpSocket>);
+pub struct UdpSocketBind(Bind<fn(&SocketAddr) -> io::Result<MioUdpSocket>, MioUdpSocket>);
 impl Future for UdpSocketBind {
     type Item = UdpSocket;
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        Ok(self.0
-               .poll()?
-               .map(|handle| UdpSocket { handle: handle }))
+        Ok(self.0.poll()?.map(|handle| UdpSocket { handle: handle }))
     }
 }
 
@@ -154,11 +152,10 @@ impl<B: AsRef<[u8]>> Future for SendTo<B> {
                     Ok(Async::Ready(())) => {}
                 }
             } else {
-                let result = state
-                    .socket
-                    .handle
-                    .inner()
-                    .send_to(state.buf.as_ref(), &state.target);
+                let result = state.socket.handle.inner().send_to(
+                    state.buf.as_ref(),
+                    &state.target,
+                );
                 match result {
                     Err(e) => {
                         if e.kind() == io::ErrorKind::WouldBlock {

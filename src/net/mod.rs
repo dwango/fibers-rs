@@ -29,7 +29,7 @@ pub use self::udp::UdpSocket;
 pub use self::tcp::{TcpListener, TcpStream};
 
 use fiber;
-use internal::io_poll::{EventedHandle, Register};
+use io::poll::{EventedHandle, Register};
 
 pub mod futures {
     //! Implementations of `futures::Future` trait.
@@ -50,8 +50,9 @@ enum Bind<F, T> {
     Polled,
 }
 impl<F, T> Future for Bind<F, T>
-    where F: FnOnce(&SocketAddr) -> io::Result<T>,
-          T: mio::Evented + Send + 'static
+where
+    F: FnOnce(&SocketAddr) -> io::Result<T>,
+    T: mio::Evented + Send + 'static,
 {
     type Item = EventedHandle<T>;
     type Error = io::Error;
@@ -59,8 +60,9 @@ impl<F, T> Future for Bind<F, T>
         match mem::replace(self, Bind::Polled) {
             Bind::Bind(addr, bind) => {
                 let socket = bind(&addr)?;
-                let register =
-                    assert_some!(fiber::with_current_context(|mut c| c.poller().register(socket)));
+                let register = assert_some!(fiber::with_current_context(
+                    |mut c| c.poller().register(socket),
+                ));
                 *self = Bind::Registering(register);
                 self.poll()
             }

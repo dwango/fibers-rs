@@ -1,22 +1,31 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
+//! I/O events polling functionalities (for developers).
+//!
+//! This module is mainly exported for developers.
+//! So, usual users do not need to be conscious.
+//!
+//! # Implementation Details
+//!
+//! This module is a wrapper of the [mio](https://github.com/carllerche/mio) crate.
 use std::io;
 use std::ops;
 use std::sync::Arc;
 use mio;
 
-pub use self::poller::{Poller, PollerHandle, Timeout, EventedHandle};
-pub use self::poller::Register;
+pub use self::poller::{Poller, PollerHandle, EventedHandle};
+pub use self::poller::{Register, DEFAULT_EVENTS_CAPACITY};
 
-use internal::sync_atomic::{AtomicCell, AtomicBorrowMut};
+use sync_atomic::{AtomicCell, AtomicBorrowMut};
 
-pub mod poller;
+pub(crate) mod poller;
 
 #[derive(Debug)]
-pub struct SharableEvented<T>(Arc<AtomicCell<T>>);
+pub(crate) struct SharableEvented<T>(Arc<AtomicCell<T>>);
 impl<T> SharableEvented<T>
-    where T: mio::Evented
+where
+    T: mio::Evented,
 {
     pub fn new(inner: T) -> Self {
         SharableEvented(Arc::new(AtomicCell::new(inner)))
@@ -37,22 +46,25 @@ impl<T> Clone for SharableEvented<T> {
     }
 }
 impl<T> mio::Evented for SharableEvented<T>
-    where T: mio::Evented
+where
+    T: mio::Evented,
 {
-    fn register(&self,
-                poll: &mio::Poll,
-                token: mio::Token,
-                interest: mio::Ready,
-                opts: mio::PollOpt)
-                -> io::Result<()> {
+    fn register(
+        &self,
+        poll: &mio::Poll,
+        token: mio::Token,
+        interest: mio::Ready,
+        opts: mio::PollOpt,
+    ) -> io::Result<()> {
         self.lock().register(poll, token, interest, opts)
     }
-    fn reregister(&self,
-                  poll: &mio::Poll,
-                  token: mio::Token,
-                  interest: mio::Ready,
-                  opts: mio::PollOpt)
-                  -> io::Result<()> {
+    fn reregister(
+        &self,
+        poll: &mio::Poll,
+        token: mio::Token,
+        interest: mio::Ready,
+        opts: mio::PollOpt,
+    ) -> io::Result<()> {
         self.lock().reregister(poll, token, interest, opts)
     }
     fn deregister(&self, poll: &mio::Poll) -> io::Result<()> {

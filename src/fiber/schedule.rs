@@ -7,9 +7,8 @@ use std::sync::mpsc as std_mpsc;
 use std::cell::RefCell;
 use futures::{BoxFuture, Poll, Async};
 
-use fiber;
-use internal::fiber::Task;
-use internal::io_poll as poll;
+use fiber::{self, Task};
+use io::poll;
 use super::{Spawn, FiberState};
 
 static mut NEXT_SCHEDULER_ID: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
@@ -124,8 +123,10 @@ impl Scheduler {
     }
     fn spawn_fiber(&mut self, task: Task) {
         let fiber_id = self.next_fiber_id();
-        self.fibers
-            .insert(fiber_id, fiber::FiberState::new(fiber_id, task));
+        self.fibers.insert(
+            fiber_id,
+            fiber::FiberState::new(fiber_id, task),
+        );
         self.schedule(fiber_id);
     }
     fn run_fiber(&mut self, fiber_id: fiber::FiberId) {
@@ -133,10 +134,11 @@ impl Scheduler {
         let is_runnable = {
             CURRENT_CONTEXT.with(|context| {
                 let mut context = context.borrow_mut();
-                if context
-                       .scheduler
-                       .as_ref()
-                       .map_or(true, |s| s.id != self.scheduler_id) {
+                if context.scheduler.as_ref().map_or(
+                    true,
+                    |s| s.id != self.scheduler_id,
+                )
+                {
                     context.switch(self);
                 }
                 {
@@ -220,9 +222,12 @@ pub struct CurrentScheduler {
 ///
 /// If this function is called on the outside of a fiber, it will ignores `f` and returns `None`.
 pub fn with_current_context<F, T>(f: F) -> Option<T>
-    where F: FnOnce(Context) -> T
+where
+    F: FnOnce(Context) -> T,
 {
-    CURRENT_CONTEXT.with(|inner_context| inner_context.borrow_mut().as_context().map(f))
+    CURRENT_CONTEXT.with(|inner_context| {
+        inner_context.borrow_mut().as_context().map(f)
+    })
 }
 
 /// The execution context of the currently running fiber.
@@ -239,8 +244,10 @@ impl<'a> Context<'a> {
 
     /// Parks the current fiber.
     pub fn park(&mut self) -> super::Unpark {
-        self.fiber
-            .park(self.scheduler.id, self.scheduler.handle.clone())
+        self.fiber.park(
+            self.scheduler.id,
+            self.scheduler.handle.clone(),
+        )
     }
 
     /// Returns the I/O event poller for this context.
@@ -314,19 +321,19 @@ impl InnerContext {
     }
     pub fn switch(&mut self, scheduler: &Scheduler) {
         self.scheduler = Some(CurrentScheduler {
-                                  id: scheduler.scheduler_id,
-                                  handle: scheduler.handle(),
-                                  poller: scheduler.poller.clone(),
-                              })
+            id: scheduler.scheduler_id,
+            handle: scheduler.handle(),
+            poller: scheduler.poller.clone(),
+        })
     }
     pub fn as_context(&mut self) -> Option<Context> {
         if let Some(scheduler) = self.scheduler.as_mut() {
             if let Some(fiber) = self.fiber {
                 let fiber = unsafe { &mut *fiber };
                 return Some(Context {
-                                scheduler: scheduler,
-                                fiber: fiber,
-                            });
+                    scheduler: scheduler,
+                    fiber: fiber,
+                });
             }
         }
         None

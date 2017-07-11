@@ -16,8 +16,7 @@ impl<T> AtomicCell<T> {
         AtomicCell { inner: AtomicPtr::new(Box::into_raw(boxed)) }
     }
     pub fn try_borrow_mut(&self) -> Option<AtomicBorrowMut<T>> {
-        let old = self.inner
-            .swap(ptr::null_mut(), atomic::Ordering::SeqCst);
+        let old = self.inner.swap(ptr::null_mut(), atomic::Ordering::SeqCst);
         if old == ptr::null_mut() {
             None
         } else {

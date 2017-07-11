@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use fiber;
-use internal::sync_atomic::AtomicCell;
+use sync_atomic::AtomicCell;
 
 pub mod mpsc;
 pub mod oneshot;

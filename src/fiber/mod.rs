@@ -16,7 +16,6 @@ pub use self::schedule::{Scheduler, SchedulerHandle, SchedulerId};
 pub use self::schedule::{with_current_context, yield_poll, Context};
 
 use sync::oneshot::{self, Monitor, Link};
-use internal::fiber::Task;
 
 mod schedule;
 
@@ -35,25 +34,28 @@ pub trait Spawn {
 
     /// Spawns a fiber which will execute given future.
     fn spawn<F>(&self, fiber: F)
-        where F: Future<Item = (), Error = ()> + Send + 'static
+    where
+        F: Future<Item = (), Error = ()> + Send + 'static,
     {
         self.spawn_boxed(fiber.boxed());
     }
 
     /// Equivalent to `self.spawn(futures::lazy(|| f()))`.
     fn spawn_fn<F, T>(&self, f: F)
-        where F: FnOnce() -> T + Send + 'static,
-              T: IntoFuture<Item = (), Error = ()> + Send + 'static,
-              T::Future: Send
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: IntoFuture<Item = (), Error = ()> + Send + 'static,
+        T::Future: Send,
     {
         self.spawn(futures::lazy(|| f()))
     }
 
     /// Spawns a fiber and returns a future to monitor it's execution result.
     fn spawn_monitor<F, T, E>(&self, f: F) -> Monitor<T, E>
-        where F: Future<Item = T, Error = E> + Send + 'static,
-              T: Send + 'static,
-              E: Send + 'static
+    where
+        F: Future<Item = T, Error = E> + Send + 'static,
+        T: Send + 'static,
+        E: Send + 'static,
     {
         let (monitored, monitor) = oneshot::monitor();
         self.spawn(f.then(move |r| Ok(monitored.exit(r))));
@@ -87,33 +89,34 @@ pub trait Spawn {
     /// # }
     /// ```
     fn spawn_link<F, T, E>(&self, f: F) -> Link<(), (), T, E>
-        where F: Future<Item = T, Error = E> + Send + 'static,
-              T: Send + 'static,
-              E: Send + 'static
+    where
+        F: Future<Item = T, Error = E> + Send + 'static,
+        T: Send + 'static,
+        E: Send + 'static,
     {
         let (link0, link1) = oneshot::link();
-        let future = f.select_either(link1)
-            .then(|result| {
-                match result {
-                    Err(Either::A((result, link1))) => {
-                        link1.exit(Err(result));
-                    }
-                    Ok(Either::A((result, link1))) => {
-                        link1.exit(Ok(result));
-                    }
-                    _ => {
-                        // Disconnected by `link0`
-                    }
+        let future = f.select_either(link1).then(|result| {
+            match result {
+                Err(Either::A((result, link1))) => {
+                    link1.exit(Err(result));
                 }
-                Ok(())
-            });
+                Ok(Either::A((result, link1))) => {
+                    link1.exit(Ok(result));
+                }
+                _ => {
+                    // Disconnected by `link0`
+                }
+            }
+            Ok(())
+        });
         self.spawn(future);
         link0
     }
 
     /// Converts this instance into a boxed object.
     fn boxed(self) -> BoxSpawn
-        where Self: Sized + Send + 'static
+    where
+        Self: Sized + Send + 'static,
     {
         BoxSpawn(Box::new(move |fiber| self.spawn_boxed(fiber)))
     }
@@ -126,7 +129,8 @@ impl Spawn for BoxSpawn {
         (self.0)(fiber);
     }
     fn boxed(self) -> BoxSpawn
-        where Self: Sized + Send + 'static
+    where
+        Self: Sized + Send + 'static,
     {
         self
     }
@@ -171,10 +175,11 @@ impl FiberState {
     pub fn is_runnable(&self) -> bool {
         self.parks == 0 || self.unparks.load(atomic::Ordering::SeqCst) > 0
     }
-    pub fn park(&mut self,
-                scheduler_id: schedule::SchedulerId,
-                scheduler: schedule::SchedulerHandle)
-                -> Unpark {
+    pub fn park(
+        &mut self,
+        scheduler_id: schedule::SchedulerId,
+        scheduler: schedule::SchedulerHandle,
+    ) -> Unpark {
         self.parks += 1;
         Unpark {
             fiber_id: self.fiber_id,
@@ -213,5 +218,14 @@ impl Drop for Unpark {
         if old == 0 {
             self.scheduler.wakeup(self.fiber_id);
         }
+    }
+}
+
+pub(crate) type FiberFuture = BoxFuture<(), ()>;
+
+pub(crate) struct Task(pub FiberFuture);
+impl fmt::Debug for Task {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Task(_)")
     }
 }

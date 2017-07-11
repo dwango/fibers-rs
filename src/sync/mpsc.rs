@@ -112,28 +112,32 @@ use super::Notifier;
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let notifier = Notifier::new();
     let (tx, rx) = std_mpsc::channel();
-    (Sender {
-         inner: tx,
-         notifier: notifier.clone(),
-     },
-     Receiver {
-         inner: rx,
-         notifier: notifier,
-     })
+    (
+        Sender {
+            inner: tx,
+            notifier: notifier.clone(),
+        },
+        Receiver {
+            inner: rx,
+            notifier: notifier,
+        },
+    )
 }
 
 /// Creates a new synchronous, bounded channel.
 pub fn sync_channel<T>(bound: usize) -> (SyncSender<T>, Receiver<T>) {
     let notifier = Notifier::new();
     let (tx, rx) = std_mpsc::sync_channel(bound);
-    (SyncSender {
-         inner: tx,
-         notifier: notifier.clone(),
-     },
-     Receiver {
-         inner: rx,
-         notifier: notifier,
-     })
+    (
+        SyncSender {
+            inner: tx,
+            notifier: notifier.clone(),
+        },
+        Receiver {
+            inner: rx,
+            notifier: notifier,
+        },
+    )
 }
 
 /// The receiving-half of a mpsc channel.
@@ -153,11 +157,13 @@ impl<T> Stream for Receiver<T> {
     type Error = ();
     type Item = T;
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        match self.inner.try_recv() {
-            Err(std_mpsc::TryRecvError::Empty) => {
-                self.notifier.await();
-                Ok(Async::NotReady)
-            }
+        let mut result = self.inner.try_recv();
+        if let Err(std_mpsc::TryRecvError::Empty) = result {
+            self.notifier.await();
+            result = self.inner.try_recv();
+        }
+        match result {
+            Err(std_mpsc::TryRecvError::Empty) => Ok(Async::NotReady),
             Err(std_mpsc::TryRecvError::Disconnected) => Ok(Async::Ready(None)),
             Ok(t) => Ok(Async::Ready(Some(t))),
         }

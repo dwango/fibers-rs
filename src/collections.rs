@@ -14,7 +14,8 @@ pub struct HeapMap<K, V> {
     inner: SplayMap<K, V>,
 }
 impl<K, V> HeapMap<K, V>
-    where K: Ord
+where
+    K: Ord,
 {
     /// Makes new heap instance.
     pub fn new() -> Self {
@@ -36,7 +37,8 @@ impl<K, V> HeapMap<K, V>
 
     /// Pops the entry which has the smallest key if the predicate `f` would be satisfied.
     pub fn pop_if<F>(&mut self, f: F) -> Option<(K, V)>
-        where F: FnOnce(&K, &V) -> bool
+    where
+        F: FnOnce(&K, &V) -> bool,
     {
         if self.inner.smallest().map_or(false, |(k, v)| f(k, v)) {
             self.inner.take_smallest()
