@@ -160,7 +160,7 @@ impl Poller {
     pub fn handle(&self) -> PollerHandle {
         PollerHandle {
             request_tx: self.request_tx.clone(),
-            next_timeout_id: self.next_timeout_id.clone(),
+            next_timeout_id: Arc::clone(&self.next_timeout_id),
             is_alive: true,
         }
     }
@@ -251,7 +251,10 @@ impl PollerHandle {
             let handle = EventedHandle::new(evented, request_tx, token);
             let _ = tx.send(handle);
         });
-        let reply = RegisterReplyFn(Box::new(move |token| (reply.take().unwrap())(token)));
+        let reply = RegisterReplyFn(Box::new(move |token| {
+            let reply = reply.take().unwrap();
+            reply(token)
+        }));
         if self.request_tx
             .send(Request::Register(box_evented, reply))
             .is_err()
@@ -265,7 +268,7 @@ impl PollerHandle {
         let (tx, rx) = oneshot::channel();
         let expiry_time = time::Instant::now() + delay_from_now;
         let timeout_id = self.next_timeout_id.fetch_add(1, atomic::Ordering::SeqCst);
-        let request = Request::SetTimeout(timeout_id, expiry_time.clone(), tx);
+        let request = Request::SetTimeout(timeout_id, expiry_time, tx);
         let _ = self.request_tx.send(request);
         Timeout {
             cancel: Some(CancelTimeout {
@@ -375,9 +378,9 @@ impl<T> Clone for EventedHandle<T> {
     fn clone(&self) -> Self {
         self.shared_count.fetch_add(1, atomic::Ordering::SeqCst);
         EventedHandle {
-            token: self.token.clone(),
+            token: self.token,
             request_tx: self.request_tx.clone(),
-            shared_count: self.shared_count.clone(),
+            shared_count: Arc::clone(&self.shared_count),
             inner: self.inner.clone(),
         }
     }

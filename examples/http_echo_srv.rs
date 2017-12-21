@@ -47,11 +47,11 @@ fn main() {
                                     // Read header
                                     let mut headers = [httparse::EMPTY_HEADER; 16];
                                     let mut req = httparse::Request::new(&mut headers);
-                                    let status = req.parse(&buf).map_err(into_io_error)?;
+                                    let status = req.parse(buf).map_err(into_io_error)?;
                                     if status.is_partial() {
                                         Ok(None)
                                     } else {
-                                        let content_len = get_content_length(&req.headers)?;
+                                        let content_len = get_content_length(req.headers)?;
                                         let content_offset = status.unwrap();
                                         Ok(Some((content_offset, content_len)))
                                     }

@@ -55,7 +55,7 @@
 //! [sync](sync/index.html), [io](io/index.html), [time](time/index.html) modules for more details).
 //!
 //! The main concern of this library is "how to execute fibers".
-//! So it is preferred to use external crates (e.g., [handy_async][handy_async])
+//! So it is preferred to use external crates (e.g., [`handy_async`][handy_async])
 //! to describe "how to represent asynchronous tasks".
 //!
 //! [handy_async]: https://github.com/sile/handy_async

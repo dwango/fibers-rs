@@ -112,7 +112,7 @@ impl Executor for ThreadPoolExecutor {
         }
         self.steps = self.steps.wrapping_add(1);
         let i = self.steps % self.pool.schedulers.len();
-        if let Err(_) = self.pool.links[i].poll() {
+        if self.pool.links[i].poll().is_err() {
             Err(io::Error::new(
                 io::ErrorKind::Other,
                 format!("The {}-th scheduler thread is aborted", i),

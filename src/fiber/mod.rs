@@ -47,7 +47,7 @@ pub trait Spawn {
         T: IntoFuture<Item = (), Error = ()> + Send + 'static,
         T::Future: Send,
     {
-        self.spawn(futures::lazy(|| f()))
+        self.spawn(futures::lazy(f))
     }
 
     /// Spawns a fiber and returns a future to monitor it's execution result.
@@ -122,8 +122,10 @@ pub trait Spawn {
     }
 }
 
+type BoxFn = Box<Fn(Box<Future<Item = (), Error = ()> + Send>) + Send + 'static>;
+
 /// Boxed `Spawn` object.
-pub struct BoxSpawn(Box<Fn(Box<Future<Item = (), Error = ()> + Send>) + Send + 'static>);
+pub struct BoxSpawn(BoxFn);
 impl Spawn for BoxSpawn {
     fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>) {
         (self.0)(fiber);
@@ -160,11 +162,9 @@ impl FiberState {
         }
     }
     pub fn run_once(&mut self) -> bool {
-        if self.parks > 0 {
-            if self.unparks.load(atomic::Ordering::SeqCst) > 0 {
-                self.parks -= 1;
-                self.unparks.fetch_sub(1, atomic::Ordering::SeqCst);
-            }
+        if self.parks > 0 && self.unparks.load(atomic::Ordering::SeqCst) > 0 {
+            self.parks -= 1;
+            self.unparks.fetch_sub(1, atomic::Ordering::SeqCst);
         }
         if let Ok(Async::NotReady) = self.task.0.poll() {
             false
@@ -183,7 +183,7 @@ impl FiberState {
         self.parks += 1;
         Unpark {
             fiber_id: self.fiber_id,
-            unparks: self.unparks.clone(),
+            unparks: Arc::clone(&self.unparks),
             scheduler_id: scheduler_id,
             scheduler: scheduler,
         }

@@ -42,7 +42,7 @@ where
 }
 impl<T> Clone for SharableEvented<T> {
     fn clone(&self) -> Self {
-        SharableEvented(self.0.clone())
+        SharableEvented(Arc::clone(&self.0))
     }
 }
 impl<T> mio::Evented for SharableEvented<T>

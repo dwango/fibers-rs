@@ -345,11 +345,14 @@ impl<E: fmt::Display> fmt::Display for MonitorError<E> {
 }
 
 /// Creates a oneshot channel for bidirectional monitoring.
-pub fn link<T0, E0, T1, E1>() -> (Link<T0, E0, T1, E1>, Link<T1, E1, T0, E0>) {
+pub fn link<T0, E0, T1, E1>() -> LinkPair<T0, E0, T1, E1> {
     let (tx0, rx0) = monitor();
     let (tx1, rx1) = monitor();
     (Link { tx: tx0, rx: rx1 }, Link { tx: tx1, rx: rx0 })
 }
+
+/// Bidirectional link pair.
+pub type LinkPair<T0, E0, T1, E1> = (Link<T0, E0, T1, E1>, Link<T1, E1, T0, E0>);
 
 /// The half of a link channel.
 ///

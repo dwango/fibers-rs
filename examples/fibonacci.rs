@@ -20,21 +20,18 @@ fn main() {
         .expect("Invalid number");
 
     let mut executor = ThreadPoolExecutor::new().unwrap();
-    let future = fibonacci(input_number, executor.handle());
+    let future = fibonacci(input_number, &executor.handle());
     let monitor = executor.spawn_monitor(future);
     let answer = executor.run_fiber(monitor).unwrap().unwrap();
     println!("fibonacci({}) = {}", input_number, answer);
 }
 
-fn fibonacci<H: Spawn + Clone>(
-    n: usize,
-    handle: H,
-) -> Box<Future<Item = usize, Error = ()> + Send> {
+fn fibonacci<H: Spawn>(n: usize, handle: &H) -> Box<Future<Item = usize, Error = ()> + Send> {
     if n < 2 {
         Box::new(futures::finished(n))
     } else {
-        let f0 = handle.spawn_monitor(fibonacci(n - 1, handle.clone()));
-        let f1 = handle.spawn_monitor(fibonacci(n - 2, handle.clone()));
+        let f0 = handle.spawn_monitor(fibonacci(n - 1, handle));
+        let f1 = handle.spawn_monitor(fibonacci(n - 2, handle));
         Box::new(f0.join(f1).map(|(a0, a1)| a0 + a1).map_err(|_| ()))
     }
 }
