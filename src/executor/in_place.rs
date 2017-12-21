@@ -62,7 +62,9 @@ impl InPlaceExecutor {
 impl Executor for InPlaceExecutor {
     type Handle = InPlaceExecutorHandle;
     fn handle(&self) -> Self::Handle {
-        InPlaceExecutorHandle { scheduler: self.scheduler.handle() }
+        InPlaceExecutorHandle {
+            scheduler: self.scheduler.handle(),
+        }
     }
     fn run_once(&mut self) -> io::Result<()> {
         self.scheduler.run_once(false);

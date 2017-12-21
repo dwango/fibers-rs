@@ -62,7 +62,7 @@
 //! If a corresponding sender finds there is a waiting receiver,
 //! it will resume (reschedule) the fiber, after sending a message.
 use std::sync::mpsc as std_mpsc;
-use futures::{Poll, Async, Stream, Sink, StartSend, AsyncSink};
+use futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream};
 
 use super::Notifier;
 

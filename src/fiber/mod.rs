@@ -8,14 +8,14 @@
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicUsize};
-use futures::{self, Async, Future, BoxFuture, IntoFuture};
+use futures::{self, Async, BoxFuture, Future, IntoFuture};
 use futures::future::Either;
 use handy_async::future::FutureExt;
 
 pub use self::schedule::{Scheduler, SchedulerHandle, SchedulerId};
 pub use self::schedule::{with_current_context, yield_poll, Context};
 
-use sync::oneshot::{self, Monitor, Link};
+use sync::oneshot::{self, Link, Monitor};
 
 mod schedule;
 

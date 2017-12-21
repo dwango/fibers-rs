@@ -6,16 +6,18 @@ extern crate fibers;
 extern crate futures;
 
 use clap::{App, Arg};
-use fibers::{Spawn, Executor, ThreadPoolExecutor};
-use futures::{Future, BoxFuture};
+use fibers::{Executor, Spawn, ThreadPoolExecutor};
+use futures::{BoxFuture, Future};
 
 fn main() {
     let matches = App::new("fibonacci")
         .arg(Arg::with_name("INPUT_NUMBER").index(1).required(true))
         .get_matches();
-    let input_number = matches.value_of("INPUT_NUMBER").unwrap().parse().expect(
-        "Invalid number",
-    );
+    let input_number = matches
+        .value_of("INPUT_NUMBER")
+        .unwrap()
+        .parse()
+        .expect("Invalid number");
 
     let mut executor = ThreadPoolExecutor::new().unwrap();
     let future = fibonacci(input_number, executor.handle());

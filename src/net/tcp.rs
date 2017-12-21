@@ -4,7 +4,7 @@
 use std::io;
 use std::mem;
 use std::net::SocketAddr;
-use futures::{Poll, Async, Future, Stream};
+use futures::{Async, Future, Poll, Stream};
 use mio;
 use mio::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 
@@ -113,11 +113,9 @@ impl Future for TcpListenerBind {
     type Item = TcpListener;
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        Ok(self.0.poll()?.map(|handle| {
-            TcpListener {
-                handle: handle,
-                monitor: None,
-            }
+        Ok(self.0.poll()?.map(|handle| TcpListener {
+            handle: handle,
+            monitor: None,
         }))
     }
 }
@@ -399,9 +397,8 @@ impl Future for ConnectInner {
         match mem::replace(self, ConnectInner::Polled) {
             ConnectInner::Connect(addr) => {
                 let stream = MioTcpStream::connect(&addr)?;
-                let register = assert_some!(fiber::with_current_context(
-                    |mut c| c.poller().register(stream),
-                ));
+                let register = assert_some!(fiber::with_current_context(|mut c| c.poller()
+                    .register(stream),));
                 *self = ConnectInner::Registering(register);
                 self.poll()
             }
@@ -414,27 +411,25 @@ impl Future for ConnectInner {
                     Ok(Async::NotReady)
                 }
             }
-            ConnectInner::Connecting(mut stream) => {
-                match stream.peer_addr() {
-                    Ok(_) => Ok(Async::Ready(stream)),
-                    Err(e) => {
-                        if let Some(e) = stream.take_error()? {
-                            Err(e)?;
-                        }
-                        if e.kind() == io::ErrorKind::NotConnected {
-                            let retry = stream.start_monitor_if_needed(Interest::Write)?;
-                            *self = ConnectInner::Connecting(stream);
-                            if retry {
-                                self.poll()
-                            } else {
-                                Ok(Async::NotReady)
-                            }
+            ConnectInner::Connecting(mut stream) => match stream.peer_addr() {
+                Ok(_) => Ok(Async::Ready(stream)),
+                Err(e) => {
+                    if let Some(e) = stream.take_error()? {
+                        Err(e)?;
+                    }
+                    if e.kind() == io::ErrorKind::NotConnected {
+                        let retry = stream.start_monitor_if_needed(Interest::Write)?;
+                        *self = ConnectInner::Connecting(stream);
+                        if retry {
+                            self.poll()
                         } else {
-                            Err(e)
+                            Ok(Async::NotReady)
                         }
+                    } else {
+                        Err(e)
                     }
                 }
-            }
+            },
             ConnectInner::Polled => panic!("Cannot poll ConnectInner twice"),
         }
     }

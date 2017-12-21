@@ -16,7 +16,9 @@ struct Notifier {
 }
 impl Notifier {
     pub fn new() -> Self {
-        Notifier { unpark: Arc::new(AtomicCell::new(None)) }
+        Notifier {
+            unpark: Arc::new(AtomicCell::new(None)),
+        }
     }
     pub fn await(&mut self) {
         loop {

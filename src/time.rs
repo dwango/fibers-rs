@@ -6,7 +6,7 @@ pub mod timer {
     //! Timer
     use std::time;
     use std::sync::mpsc as std_mpsc;
-    use futures::{Future, Poll, Async};
+    use futures::{Async, Future, Poll};
 
     use io::poll;
     use fiber::{self, Context};
@@ -95,7 +95,7 @@ pub mod timer {
     #[cfg(test)]
     mod test {
         use std::time::Duration;
-        use futures::{self, Future, Async};
+        use futures::{self, Async, Future};
         use super::*;
 
         #[test]

@@ -2,17 +2,17 @@
 // See the LICENSE file at the top-level directory of this distribution.
 
 extern crate clap;
-extern crate httparse;
+extern crate fibers;
 extern crate futures;
 extern crate handy_async;
-extern crate fibers;
+extern crate httparse;
 
 use std::io;
 use clap::{App, Arg};
 use handy_async::io::{ReadFrom, WriteInto};
-use handy_async::pattern::{self, Window, Branch, Pattern};
+use handy_async::pattern::{self, Branch, Pattern, Window};
 use futures::{Future, Stream};
-use fibers::{Spawn, Executor, ThreadPoolExecutor};
+use fibers::{Executor, Spawn, ThreadPoolExecutor};
 
 fn main() {
     let matches = App::new("http_echo_srv")
@@ -25,9 +25,9 @@ fn main() {
         .arg(Arg::with_name("VERBOSE").short("v"))
         .get_matches();
     let port = matches.value_of("PORT").unwrap();
-    let addr = format!("0.0.0.0:{}", port).parse().expect(
-        "Invalid TCP bind address",
-    );
+    let addr = format!("0.0.0.0:{}", port)
+        .parse()
+        .expect("Invalid TCP bind address");
     let verbose = matches.is_present("VERBOSE");
 
     let executor = ThreadPoolExecutor::new().expect("Cannot create Executor");
@@ -55,20 +55,23 @@ fn main() {
                                         let content_offset = status.unwrap();
                                         Ok(Some((content_offset, content_len)))
                                     }
-                                }).and_then(|(mut buf,
-                                  (content_offset, content_len))| {
-                                    // Read content
-                                    let read_size = buf.len();
-                                    let request_len = content_offset + content_len;
-                                    buf.resize(request_len, 0);
-                                    let buf = Window::new(buf).skip(read_size);
-                                    let pattern = if read_size == request_len {
-                                        Branch::A(Ok(buf)) as Branch<_, _>
-                                    } else {
-                                        Branch::B(buf)
-                                    };
-                                    pattern.map(move |buf: Window<_>| buf.set_start(content_offset))
-                                });
+                                }).and_then(
+                                    |(mut buf, (content_offset, content_len))| {
+                                        // Read content
+                                        let read_size = buf.len();
+                                        let request_len = content_offset + content_len;
+                                        buf.resize(request_len, 0);
+                                        let buf = Window::new(buf).skip(read_size);
+                                        let pattern = if read_size == request_len {
+                                            Branch::A(Ok(buf)) as Branch<_, _>
+                                        } else {
+                                            Branch::B(buf)
+                                        };
+                                        pattern.map(move |buf: Window<_>| {
+                                            buf.set_start(content_offset)
+                                        })
+                                    },
+                                );
                                 read_request_pattern.read_from(client).then(|result| {
                                     // Write response
                                     let (client, result) = match result {
@@ -84,14 +87,16 @@ fn main() {
                                             content.as_ref().len()
                                         ).chain(content)
                                             .map(|_| ())
-                                    }).or_else(|error: io::Error| {
-                                        let message = error.to_string();
-                                        format!(
-                                            "HTTP/1.1 500 OK\r\nContent-Length: {}\r\n\r\n",
-                                            message.len()
-                                        ).chain(message)
-                                            .map(|_| ())
-                                    });
+                                    }).or_else(
+                                        |error: io::Error| {
+                                            let message = error.to_string();
+                                            format!(
+                                                "HTTP/1.1 500 OK\r\nContent-Length: {}\r\n\r\n",
+                                                message.len()
+                                            ).chain(message)
+                                                .map(|_| ())
+                                        },
+                                    );
                                     pattern.write_into(client).map_err(|e| e.into_error())
                                 })
                             })

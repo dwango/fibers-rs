@@ -185,12 +185,12 @@
 //! ```
 #![warn(missing_docs)]
 
-extern crate mio;
 extern crate futures;
-extern crate splay_tree;
-extern crate num_cpus;
 extern crate handy_async;
+extern crate mio;
 extern crate nbchan;
+extern crate num_cpus;
+extern crate splay_tree;
 
 macro_rules! assert_some {
     ($e:expr) => {
@@ -210,7 +210,7 @@ macro_rules! assert_ok {
 pub use self::executor::{Executor, InPlaceExecutor, ThreadPoolExecutor};
 
 #[doc(inline)]
-pub use self::fiber::{Spawn, BoxSpawn};
+pub use self::fiber::{BoxSpawn, Spawn};
 
 pub mod io;
 pub mod net;

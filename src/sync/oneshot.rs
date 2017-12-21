@@ -18,7 +18,7 @@
 use std::fmt;
 use std::error;
 use std::sync::mpsc::{RecvError, SendError};
-use futures::{Poll, Async, Future};
+use futures::{Async, Future, Poll};
 use nbchan;
 
 use super::Notifier;

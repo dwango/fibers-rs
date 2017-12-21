@@ -13,7 +13,7 @@ use mio;
 
 use sync::oneshot;
 use collections::HeapMap;
-use super::{Interest, SharableEvented, EventedLock};
+use super::{EventedLock, Interest, SharableEvented};
 
 type RequestSender = std_mpsc::Sender<Request>;
 type RequestReceiver = std_mpsc::Receiver<Request>;
@@ -46,15 +46,14 @@ impl Registrant {
     }
     pub fn mio_interest(&self) -> mio::Ready {
         (if self.read_waitings.is_empty() {
-             mio::Ready::empty()
-         } else {
-             mio::Ready::readable()
-         }) |
-            (if self.write_waitings.is_empty() {
-                 mio::Ready::empty()
-             } else {
-                 mio::Ready::writable()
-             })
+            mio::Ready::empty()
+        } else {
+            mio::Ready::readable()
+        }) | (if self.write_waitings.is_empty() {
+            mio::Ready::empty()
+        } else {
+            mio::Ready::writable()
+        })
     }
 }
 
@@ -190,10 +189,10 @@ impl Poller {
                 }
             }
             Request::SetTimeout(timeout_id, expiry_time, reply) => {
-                assert!(self.timeout_queue.push_if_absent(
-                    (expiry_time, timeout_id),
-                    reply,
-                ));
+                assert!(
+                    self.timeout_queue
+                        .push_if_absent((expiry_time, timeout_id), reply,)
+                );
             }
             Request::CancelTimeout(timeout_id, expiry_time) => {
                 self.timeout_queue.remove(&(expiry_time, timeout_id));
@@ -291,10 +290,8 @@ struct CancelTimeout {
 }
 impl CancelTimeout {
     pub fn cancel(self) {
-        let _ = self.request_tx.send(Request::CancelTimeout(
-            self.timeout_id,
-            self.expiry_time,
-        ));
+        let _ = self.request_tx
+            .send(Request::CancelTimeout(self.timeout_id, self.expiry_time));
     }
 }
 
@@ -364,11 +361,8 @@ impl<T: mio::Evented> EventedHandle<T> {
     /// Monitors occurrence of an event specified by `interest`.
     pub fn monitor(&self, interest: Interest) -> oneshot::Monitor<(), io::Error> {
         let (monitored, monitor) = oneshot::monitor();
-        let _ = self.request_tx.send(Request::Monitor(
-            self.token,
-            interest,
-            monitored,
-        ));
+        let _ = self.request_tx
+            .send(Request::Monitor(self.token, interest, monitored));
         monitor
     }
 

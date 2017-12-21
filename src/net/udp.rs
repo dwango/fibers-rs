@@ -3,10 +3,10 @@
 
 use std::io;
 use std::net::SocketAddr;
-use futures::{Poll, Async, Future};
+use futures::{Async, Future, Poll};
 use mio::net::UdpSocket as MioUdpSocket;
 
-use io::poll::{Interest, EventedHandle};
+use io::poll::{EventedHandle, Interest};
 use sync::oneshot::Monitor;
 use super::{into_io_error, Bind};
 
@@ -152,10 +152,11 @@ impl<B: AsRef<[u8]>> Future for SendTo<B> {
                     Ok(Async::Ready(())) => {}
                 }
             } else {
-                let result = state.socket.handle.inner().send_to(
-                    state.buf.as_ref(),
-                    &state.target,
-                );
+                let result = state
+                    .socket
+                    .handle
+                    .inner()
+                    .send_to(state.buf.as_ref(), &state.target);
                 match result {
                     Err(e) => {
                         if e.kind() == io::ErrorKind::WouldBlock {

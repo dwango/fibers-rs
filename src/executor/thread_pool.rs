@@ -6,7 +6,7 @@ use std::time;
 use std::thread;
 use std::sync::mpsc as std_mpsc;
 use num_cpus;
-use futures::{Async, Future, BoxFuture};
+use futures::{Async, BoxFuture, Future};
 
 use fiber::{self, Spawn};
 use io::poll;
@@ -94,7 +94,9 @@ impl ThreadPoolExecutor {
 impl Executor for ThreadPoolExecutor {
     type Handle = ThreadPoolExecutorHandle;
     fn handle(&self) -> Self::Handle {
-        ThreadPoolExecutorHandle { spawn_tx: self.spawn_tx.clone() }
+        ThreadPoolExecutorHandle {
+            spawn_tx: self.spawn_tx.clone(),
+        }
     }
     fn run_once(&mut self) -> io::Result<()> {
         match self.spawn_rx.try_recv() {
@@ -151,11 +153,13 @@ impl PollerPool {
             let mut poller = poll::Poller::new()?;
             links.push(link0);
             pollers.push(poller.handle());
-            thread::spawn(move || while let Ok(Async::NotReady) = link1.poll() {
-                let timeout = time::Duration::from_millis(1);
-                if let Err(e) = poller.poll(Some(timeout)) {
-                    link1.exit(Err(e));
-                    return;
+            thread::spawn(move || {
+                while let Ok(Async::NotReady) = link1.poll() {
+                    let timeout = time::Duration::from_millis(1);
+                    if let Err(e) = poller.poll(Some(timeout)) {
+                        link1.exit(Err(e));
+                        return;
+                    }
                 }
             });
         }
@@ -180,8 +184,10 @@ impl SchedulerPool {
             let mut scheduler = fiber::Scheduler::new(poller.clone());
             links.push(link0);
             schedulers.push(scheduler.handle());
-            thread::spawn(move || while let Ok(Async::NotReady) = link1.poll() {
-                scheduler.run_once(true);
+            thread::spawn(move || {
+                while let Ok(Async::NotReady) = link1.poll() {
+                    scheduler.run_once(true);
+                }
             });
         }
         SchedulerPool {
