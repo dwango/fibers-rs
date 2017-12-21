@@ -5,7 +5,7 @@ use std::sync::atomic;
 use std::collections::{HashMap, VecDeque};
 use std::sync::mpsc as std_mpsc;
 use std::cell::RefCell;
-use futures::{Async, BoxFuture, Poll};
+use futures::{Async, Future, Poll};
 
 use fiber::{self, Task};
 use io::poll;
@@ -209,7 +209,7 @@ impl SchedulerHandle {
     }
 }
 impl Spawn for SchedulerHandle {
-    fn spawn_boxed(&self, fiber: BoxFuture<(), ()>) {
+    fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>) {
         let _ = self.request_tx.send(Request::Spawn(Task(fiber)));
     }
 }
@@ -301,7 +301,7 @@ impl<'a> Context<'a> {
 /// # }
 /// ```
 pub fn yield_poll<T, E>() -> Poll<T, E> {
-    with_current_context(|mut context| context.fiber.yield_once());
+    with_current_context(|context| context.fiber.yield_once());
     Ok(Async::NotReady)
 }
 

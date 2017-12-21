@@ -6,7 +6,7 @@ use std::time;
 use std::thread;
 use std::sync::mpsc as std_mpsc;
 use num_cpus;
-use futures::{Async, BoxFuture, Future};
+use futures::{Async, Future};
 
 use fiber::{self, Spawn};
 use io::poll;
@@ -24,15 +24,15 @@ use super::Executor;
 /// # extern crate fibers;
 /// # extern crate futures;
 /// use fibers::{Spawn, Executor, ThreadPoolExecutor};
-/// use futures::{Async, Future, BoxFuture};
+/// use futures::{Async, Future};
 ///
-/// fn fib<H: Spawn + Clone>(n: usize, handle: H) -> BoxFuture<usize, ()> {
+/// fn fib<H: Spawn + Clone>(n: usize, handle: H) -> Box<Future<Item=usize, Error=()> + Send> {
 ///     if n < 2 {
-///         futures::finished(n).boxed()
+///         Box::new(futures::finished(n))
 ///     } else {
 ///         let f0 = handle.spawn_monitor(fib(n - 1, handle.clone()));
 ///         let f1 = handle.spawn_monitor(fib(n - 2, handle.clone()));
-///         f0.join(f1).map(|(a0, a1)| a0 + a1).map_err(|_| ()).boxed()
+///         Box::new(f0.join(f1).map(|(a0, a1)| a0 + a1).map_err(|_| ()))
 ///     }
 /// }
 ///
@@ -123,7 +123,7 @@ impl Executor for ThreadPoolExecutor {
     }
 }
 impl Spawn for ThreadPoolExecutor {
-    fn spawn_boxed(&self, fiber: BoxFuture<(), ()>) {
+    fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>) {
         self.handle().spawn_boxed(fiber)
     }
 }
@@ -134,7 +134,7 @@ pub struct ThreadPoolExecutorHandle {
     spawn_tx: std_mpsc::Sender<Task>,
 }
 impl Spawn for ThreadPoolExecutorHandle {
-    fn spawn_boxed(&self, fiber: BoxFuture<(), ()>) {
+    fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>) {
         let _ = self.spawn_tx.send(Task(fiber));
     }
 }

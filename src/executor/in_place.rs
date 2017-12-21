@@ -3,7 +3,7 @@
 
 use std::io;
 use std::time;
-use futures::BoxFuture;
+use futures::Future;
 
 use fiber::{self, Spawn};
 use io::poll;
@@ -19,15 +19,15 @@ use super::Executor;
 /// # extern crate fibers;
 /// # extern crate futures;
 /// use fibers::{Spawn, Executor, InPlaceExecutor};
-/// use futures::{Async, Future, BoxFuture};
+/// use futures::{Async, Future};
 ///
-/// fn fib<H: Spawn + Clone>(n: usize, handle: H) -> BoxFuture<usize, ()> {
+/// fn fib<H: Spawn + Clone>(n: usize, handle: H) -> Box<Future<Item=usize, Error=()> + Send> {
 ///     if n < 2 {
-///         futures::finished(n).boxed()
+///         Box::new(futures::finished(n))
 ///     } else {
 ///         let f0 = handle.spawn_monitor(fib(n - 1, handle.clone()));
 ///         let f1 = handle.spawn_monitor(fib(n - 2, handle.clone()));
-///         f0.join(f1).map(|(a0, a1)| a0 + a1).map_err(|_| ()).boxed()
+///         Box::new(f0.join(f1).map(|(a0, a1)| a0 + a1).map_err(|_| ()))
 ///     }
 /// }
 ///
@@ -73,7 +73,7 @@ impl Executor for InPlaceExecutor {
     }
 }
 impl Spawn for InPlaceExecutor {
-    fn spawn_boxed(&self, fiber: BoxFuture<(), ()>) {
+    fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>) {
         self.handle().spawn_boxed(fiber)
     }
 }
@@ -84,7 +84,7 @@ pub struct InPlaceExecutorHandle {
     scheduler: fiber::SchedulerHandle,
 }
 impl Spawn for InPlaceExecutorHandle {
-    fn spawn_boxed(&self, fiber: BoxFuture<(), ()>) {
+    fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>) {
         self.scheduler.spawn_boxed(fiber)
     }
 }

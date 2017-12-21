@@ -7,7 +7,7 @@ extern crate futures;
 
 use clap::{App, Arg};
 use fibers::{Executor, Spawn, ThreadPoolExecutor};
-use futures::{BoxFuture, Future};
+use futures::Future;
 
 fn main() {
     let matches = App::new("fibonacci")
@@ -26,12 +26,15 @@ fn main() {
     println!("fibonacci({}) = {}", input_number, answer);
 }
 
-fn fibonacci<H: Spawn + Clone>(n: usize, handle: H) -> BoxFuture<usize, ()> {
+fn fibonacci<H: Spawn + Clone>(
+    n: usize,
+    handle: H,
+) -> Box<Future<Item = usize, Error = ()> + Send> {
     if n < 2 {
-        futures::finished(n).boxed()
+        Box::new(futures::finished(n))
     } else {
         let f0 = handle.spawn_monitor(fibonacci(n - 1, handle.clone()));
         let f1 = handle.spawn_monitor(fibonacci(n - 2, handle.clone()));
-        f0.join(f1).map(|(a0, a1)| a0 + a1).map_err(|_| ()).boxed()
+        Box::new(f0.join(f1).map(|(a0, a1)| a0 + a1).map_err(|_| ()))
     }
 }

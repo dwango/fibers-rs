@@ -78,16 +78,16 @@
 //! # extern crate fibers;
 //! # extern crate futures;
 //! use fibers::{Spawn, Executor, ThreadPoolExecutor};
-//! use futures::{Future, BoxFuture};
+//! use futures::Future;
 //!
-//! fn fibonacci<H: Spawn + Clone>(n: usize, handle: H) -> BoxFuture<usize, ()> {
+//! fn fibonacci<H: Spawn + Clone>(n: usize, handle: H) -> Box<Future<Item=usize, Error=()> + Send> {
 //!     if n < 2 {
-//!         futures::finished(n).boxed()
+//!         Box::new(futures::finished(n))
 //!     } else {
-//!         /// Spawns a new fiber per recursive call.
+//!         // Spawns a new fiber per recursive call.
 //!         let f0 = handle.spawn_monitor(fibonacci(n - 1, handle.clone()));
 //!         let f1 = handle.spawn_monitor(fibonacci(n - 2, handle.clone()));
-//!         f0.join(f1).map(|(a0, a1)| a0 + a1).map_err(|_| ()).boxed()
+//!         Box::new(f0.join(f1).map(|(a0, a1)| a0 + a1).map_err(|_| ()))
 //!     }
 //! }
 //!
@@ -195,13 +195,6 @@ extern crate splay_tree;
 macro_rules! assert_some {
     ($e:expr) => {
         $e.expect(&format!("[{}:{}] {:?} must be a Some(..)",
-                           file!(), line!(), stringify!($e)))
-    }
-}
-
-macro_rules! assert_ok {
-    ($e:expr) => {
-        $e.expect(&format!("[{}:{}] {:?} must be a Ok(..)",
                            file!(), line!(), stringify!($e)))
     }
 }

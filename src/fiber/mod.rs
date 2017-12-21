@@ -8,7 +8,7 @@
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicUsize};
-use futures::{self, Async, BoxFuture, Future, IntoFuture};
+use futures::{self, Async, Future, IntoFuture};
 use futures::future::Either;
 use handy_async::future::FutureExt;
 
@@ -30,14 +30,14 @@ pub type ContextId = (SchedulerId, FiberId);
 /// The `Spawn` trait allows for spawning fibers.
 pub trait Spawn {
     /// Spawns a fiber which will execute given boxed future.
-    fn spawn_boxed(&self, fiber: BoxFuture<(), ()>);
+    fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>);
 
     /// Spawns a fiber which will execute given future.
     fn spawn<F>(&self, fiber: F)
     where
         F: Future<Item = (), Error = ()> + Send + 'static,
     {
-        self.spawn_boxed(fiber.boxed());
+        self.spawn_boxed(Box::new(fiber));
     }
 
     /// Equivalent to `self.spawn(futures::lazy(|| f()))`.
@@ -123,9 +123,9 @@ pub trait Spawn {
 }
 
 /// Boxed `Spawn` object.
-pub struct BoxSpawn(Box<Fn(BoxFuture<(), ()>) + Send + 'static>);
+pub struct BoxSpawn(Box<Fn(Box<Future<Item = (), Error = ()> + Send>) + Send + 'static>);
 impl Spawn for BoxSpawn {
-    fn spawn_boxed(&self, fiber: BoxFuture<(), ()>) {
+    fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>) {
         (self.0)(fiber);
     }
     fn boxed(self) -> BoxSpawn
@@ -221,7 +221,7 @@ impl Drop for Unpark {
     }
 }
 
-pub(crate) type FiberFuture = BoxFuture<(), ()>;
+pub(crate) type FiberFuture = Box<Future<Item = (), Error = ()> + Send>;
 
 pub(crate) struct Task(pub FiberFuture);
 impl fmt::Debug for Task {
