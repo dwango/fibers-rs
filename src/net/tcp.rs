@@ -1,6 +1,7 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
+use std::fmt;
 use std::io;
 use std::mem;
 use std::net::SocketAddr;
@@ -60,7 +61,6 @@ use super::{into_io_error, Bind};
 /// println!("# Succeeded");
 /// # }
 /// ```
-#[derive(Debug)]
 pub struct TcpListener {
     handle: EventedHandle<MioTcpListener>,
     monitor: Option<Monitor<(), io::Error>>,
@@ -96,6 +96,16 @@ impl TcpListener {
         F: FnOnce(&MioTcpListener) -> T,
     {
         f(&*self.handle.inner())
+    }
+}
+impl fmt::Debug for TcpListener {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "TcpListener {{ ")?;
+        if let Ok(addr) = self.local_addr() {
+            write!(f, "local_addr:{:?}, ", addr)?;
+        }
+        write!(f, ".. }}")?;
+        Ok(())
     }
 }
 
@@ -249,7 +259,6 @@ impl Future for Connected {
 /// println!("# Succeeded");
 /// # }
 /// ```
-#[derive(Debug)]
 pub struct TcpStream {
     handle: EventedHandle<MioTcpStream>,
     read_monitor: Option<Monitor<(), io::Error>>,
@@ -362,6 +371,19 @@ impl io::Write for TcpStream {
     }
     fn flush(&mut self) -> io::Result<()> {
         self.operate(Interest::Write, |inner| inner.flush())
+    }
+}
+impl fmt::Debug for TcpStream {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "TcpStream {{ ")?;
+        if let Ok(addr) = self.local_addr() {
+            write!(f, "local_addr:{:?}, ", addr)?;
+        }
+        if let Ok(addr) = self.peer_addr() {
+            write!(f, "peer_addr:{:?}, ", addr)?;
+        }
+        write!(f, ".. }}")?;
+        Ok(())
     }
 }
 

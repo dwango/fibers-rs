@@ -1,6 +1,7 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
+use std::fmt;
 use std::io;
 use std::net::SocketAddr;
 use futures::{Async, Future, Poll};
@@ -55,7 +56,7 @@ use super::{into_io_error, Bind};
 /// }
 /// # }
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct UdpSocket {
     handle: EventedHandle<MioUdpSocket>,
 }
@@ -104,6 +105,16 @@ impl UdpSocket {
         F: FnOnce(&MioUdpSocket) -> T,
     {
         f(&*self.handle.inner())
+    }
+}
+impl fmt::Debug for UdpSocket {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "UdpSocket {{ ")?;
+        if let Ok(addr) = self.local_addr() {
+            write!(f, "local_addr:{:?}, ", addr)?;
+        }
+        write!(f, ".. }}")?;
+        Ok(())
     }
 }
 

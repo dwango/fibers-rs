@@ -83,7 +83,6 @@ pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
 /// The sending-half of an asynchronous oneshot channel.
 ///
 /// This structure can be used on both inside and outside of a fiber.
-#[derive(Debug)]
 pub struct Sender<T> {
     inner: Option<nbchan::oneshot::Sender<T>>,
     notifier: Notifier,
@@ -102,11 +101,15 @@ impl<T> Drop for Sender<T> {
         self.notifier.notify();
     }
 }
+impl<T> fmt::Debug for Sender<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Sender {{ .. }}")
+    }
+}
 
 /// The receiving-half of a oneshot channel.
 ///
 /// This structure can be used on both inside and outside of a fiber.
-#[derive(Debug)]
 pub struct Receiver<T> {
     inner: nbchan::oneshot::Receiver<T>,
     notifier: Notifier,
@@ -130,6 +133,11 @@ impl<T> Future for Receiver<T> {
 impl<T> Drop for Receiver<T> {
     fn drop(&mut self) {
         self.notifier.notify();
+    }
+}
+impl<T> fmt::Debug for Receiver<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Receiver {{ .. }}")
     }
 }
 
