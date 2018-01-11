@@ -13,7 +13,7 @@ use mio;
 
 use sync::oneshot;
 use collections::HeapMap;
-use super::{Interest, SharableEvented, EventedLock};
+use super::{EventedLock, Interest, SharableEvented};
 
 type RequestSender = std_mpsc::Sender<Request>;
 type RequestReceiver = std_mpsc::Receiver<Request>;
@@ -46,15 +46,14 @@ impl Registrant {
     }
     pub fn mio_interest(&self) -> mio::Ready {
         (if self.read_waitings.is_empty() {
-             mio::Ready::empty()
-         } else {
-             mio::Ready::readable()
-         }) |
-            (if self.write_waitings.is_empty() {
-                 mio::Ready::empty()
-             } else {
-                 mio::Ready::writable()
-             })
+            mio::Ready::empty()
+        } else {
+            mio::Ready::readable()
+        }) | (if self.write_waitings.is_empty() {
+            mio::Ready::empty()
+        } else {
+            mio::Ready::writable()
+        })
     }
 }
 
@@ -161,7 +160,7 @@ impl Poller {
     pub fn handle(&self) -> PollerHandle {
         PollerHandle {
             request_tx: self.request_tx.clone(),
-            next_timeout_id: self.next_timeout_id.clone(),
+            next_timeout_id: Arc::clone(&self.next_timeout_id),
             is_alive: true,
         }
     }
@@ -190,10 +189,10 @@ impl Poller {
                 }
             }
             Request::SetTimeout(timeout_id, expiry_time, reply) => {
-                assert!(self.timeout_queue.push_if_absent(
-                    (expiry_time, timeout_id),
-                    reply,
-                ));
+                assert!(
+                    self.timeout_queue
+                        .push_if_absent((expiry_time, timeout_id), reply,)
+                );
             }
             Request::CancelTimeout(timeout_id, expiry_time) => {
                 self.timeout_queue.remove(&(expiry_time, timeout_id));
@@ -252,7 +251,10 @@ impl PollerHandle {
             let handle = EventedHandle::new(evented, request_tx, token);
             let _ = tx.send(handle);
         });
-        let reply = RegisterReplyFn(Box::new(move |token| (reply.take().unwrap())(token)));
+        let reply = RegisterReplyFn(Box::new(move |token| {
+            let reply = reply.take().unwrap();
+            reply(token)
+        }));
         if self.request_tx
             .send(Request::Register(box_evented, reply))
             .is_err()
@@ -266,7 +268,7 @@ impl PollerHandle {
         let (tx, rx) = oneshot::channel();
         let expiry_time = time::Instant::now() + delay_from_now;
         let timeout_id = self.next_timeout_id.fetch_add(1, atomic::Ordering::SeqCst);
-        let request = Request::SetTimeout(timeout_id, expiry_time.clone(), tx);
+        let request = Request::SetTimeout(timeout_id, expiry_time, tx);
         let _ = self.request_tx.send(request);
         Timeout {
             cancel: Some(CancelTimeout {
@@ -291,10 +293,8 @@ struct CancelTimeout {
 }
 impl CancelTimeout {
     pub fn cancel(self) {
-        let _ = self.request_tx.send(Request::CancelTimeout(
-            self.timeout_id,
-            self.expiry_time,
-        ));
+        let _ = self.request_tx
+            .send(Request::CancelTimeout(self.timeout_id, self.expiry_time));
     }
 }
 
@@ -364,11 +364,8 @@ impl<T: mio::Evented> EventedHandle<T> {
     /// Monitors occurrence of an event specified by `interest`.
     pub fn monitor(&self, interest: Interest) -> oneshot::Monitor<(), io::Error> {
         let (monitored, monitor) = oneshot::monitor();
-        let _ = self.request_tx.send(Request::Monitor(
-            self.token,
-            interest,
-            monitored,
-        ));
+        let _ = self.request_tx
+            .send(Request::Monitor(self.token, interest, monitored));
         monitor
     }
 
@@ -381,9 +378,9 @@ impl<T> Clone for EventedHandle<T> {
     fn clone(&self) -> Self {
         self.shared_count.fetch_add(1, atomic::Ordering::SeqCst);
         EventedHandle {
-            token: self.token.clone(),
+            token: self.token,
             request_tx: self.request_tx.clone(),
-            shared_count: self.shared_count.clone(),
+            shared_count: Arc::clone(&self.shared_count),
             inner: self.inner.clone(),
         }
     }

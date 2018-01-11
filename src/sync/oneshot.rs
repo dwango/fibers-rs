@@ -18,7 +18,7 @@
 use std::fmt;
 use std::error;
 use std::sync::mpsc::{RecvError, SendError};
-use futures::{Poll, Async, Future};
+use futures::{Async, Future, Poll};
 use nbchan;
 
 use super::Notifier;
@@ -83,7 +83,6 @@ pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
 /// The sending-half of an asynchronous oneshot channel.
 ///
 /// This structure can be used on both inside and outside of a fiber.
-#[derive(Debug)]
 pub struct Sender<T> {
     inner: Option<nbchan::oneshot::Sender<T>>,
     notifier: Notifier,
@@ -102,11 +101,15 @@ impl<T> Drop for Sender<T> {
         self.notifier.notify();
     }
 }
+impl<T> fmt::Debug for Sender<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Sender {{ .. }}")
+    }
+}
 
 /// The receiving-half of a oneshot channel.
 ///
 /// This structure can be used on both inside and outside of a fiber.
-#[derive(Debug)]
 pub struct Receiver<T> {
     inner: nbchan::oneshot::Receiver<T>,
     notifier: Notifier,
@@ -130,6 +133,11 @@ impl<T> Future for Receiver<T> {
 impl<T> Drop for Receiver<T> {
     fn drop(&mut self) {
         self.notifier.notify();
+    }
+}
+impl<T> fmt::Debug for Receiver<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Receiver {{ .. }}")
     }
 }
 
@@ -345,11 +353,14 @@ impl<E: fmt::Display> fmt::Display for MonitorError<E> {
 }
 
 /// Creates a oneshot channel for bidirectional monitoring.
-pub fn link<T0, E0, T1, E1>() -> (Link<T0, E0, T1, E1>, Link<T1, E1, T0, E0>) {
+pub fn link<T0, E0, T1, E1>() -> LinkPair<T0, E0, T1, E1> {
     let (tx0, rx0) = monitor();
     let (tx1, rx1) = monitor();
     (Link { tx: tx0, rx: rx1 }, Link { tx: tx1, rx: rx0 })
 }
+
+/// Bidirectional link pair.
+pub type LinkPair<T0, E0, T1, E1> = (Link<T0, E0, T1, E1>, Link<T1, E1, T0, E0>);
 
 /// The half of a link channel.
 ///

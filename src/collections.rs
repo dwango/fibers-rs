@@ -19,7 +19,9 @@ where
 {
     /// Makes new heap instance.
     pub fn new() -> Self {
-        HeapMap { inner: SplayMap::new() }
+        HeapMap {
+            inner: SplayMap::new(),
+        }
     }
 
     /// Pushes the entry in the heap, if an entry which has the `key`

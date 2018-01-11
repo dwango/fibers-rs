@@ -14,10 +14,10 @@ use std::ops;
 use std::sync::Arc;
 use mio;
 
-pub use self::poller::{Poller, PollerHandle, EventedHandle};
+pub use self::poller::{EventedHandle, Poller, PollerHandle};
 pub use self::poller::{Register, DEFAULT_EVENTS_CAPACITY};
 
-use sync_atomic::{AtomicCell, AtomicBorrowMut};
+use sync_atomic::{AtomicBorrowMut, AtomicCell};
 
 pub(crate) mod poller;
 
@@ -42,7 +42,7 @@ where
 }
 impl<T> Clone for SharableEvented<T> {
     fn clone(&self) -> Self {
-        SharableEvented(self.0.clone())
+        SharableEvented(Arc::clone(&self.0))
     }
 }
 impl<T> mio::Evented for SharableEvented<T>

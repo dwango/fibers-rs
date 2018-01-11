@@ -1,10 +1,11 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
+use std::fmt;
 use std::io;
 use std::mem;
 use std::net::SocketAddr;
-use futures::{Poll, Async, Future, Stream};
+use futures::{Async, Future, Poll, Stream};
 use mio;
 use mio::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 
@@ -60,7 +61,6 @@ use super::{into_io_error, Bind};
 /// println!("# Succeeded");
 /// # }
 /// ```
-#[derive(Debug)]
 pub struct TcpListener {
     handle: EventedHandle<MioTcpListener>,
     monitor: Option<Monitor<(), io::Error>>,
@@ -98,6 +98,16 @@ impl TcpListener {
         f(&*self.handle.inner())
     }
 }
+impl fmt::Debug for TcpListener {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "TcpListener {{ ")?;
+        if let Ok(addr) = self.local_addr() {
+            write!(f, "local_addr:{:?}, ", addr)?;
+        }
+        write!(f, ".. }}")?;
+        Ok(())
+    }
+}
 
 /// A future which will create a new `TcpListener` which will be bound to the specified address.
 ///
@@ -113,11 +123,9 @@ impl Future for TcpListenerBind {
     type Item = TcpListener;
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        Ok(self.0.poll()?.map(|handle| {
-            TcpListener {
-                handle: handle,
-                monitor: None,
-            }
+        Ok(self.0.poll()?.map(|handle| TcpListener {
+            handle: handle,
+            monitor: None,
         }))
     }
 }
@@ -202,7 +210,7 @@ impl Future for Connected {
 ///
 /// To handle read/write operations over TCP streams in
 /// [futures](https://github.com/alexcrichton/futures-rs) style,
-/// it is preferred to use external crate like [handy_async](https://github.com/sile/handy_async).
+/// it is preferred to use external crate like [`handy_async`](https://github.com/sile/handy_async).
 ///
 /// # Examples
 ///
@@ -251,7 +259,6 @@ impl Future for Connected {
 /// println!("# Succeeded");
 /// # }
 /// ```
-#[derive(Debug)]
 pub struct TcpStream {
     handle: EventedHandle<MioTcpStream>,
     read_monitor: Option<Monitor<(), io::Error>>,
@@ -366,6 +373,19 @@ impl io::Write for TcpStream {
         self.operate(Interest::Write, |inner| inner.flush())
     }
 }
+impl fmt::Debug for TcpStream {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "TcpStream {{ ")?;
+        if let Ok(addr) = self.local_addr() {
+            write!(f, "local_addr:{:?}, ", addr)?;
+        }
+        if let Ok(addr) = self.peer_addr() {
+            write!(f, "peer_addr:{:?}, ", addr)?;
+        }
+        write!(f, ".. }}")?;
+        Ok(())
+    }
+}
 
 /// A future which will open a TCP connection to a remote host.
 ///
@@ -399,9 +419,8 @@ impl Future for ConnectInner {
         match mem::replace(self, ConnectInner::Polled) {
             ConnectInner::Connect(addr) => {
                 let stream = MioTcpStream::connect(&addr)?;
-                let register = assert_some!(fiber::with_current_context(
-                    |mut c| c.poller().register(stream),
-                ));
+                let register = assert_some!(fiber::with_current_context(|mut c| c.poller()
+                    .register(stream),));
                 *self = ConnectInner::Registering(register);
                 self.poll()
             }
@@ -414,27 +433,25 @@ impl Future for ConnectInner {
                     Ok(Async::NotReady)
                 }
             }
-            ConnectInner::Connecting(mut stream) => {
-                match stream.peer_addr() {
-                    Ok(_) => Ok(Async::Ready(stream)),
-                    Err(e) => {
-                        if let Some(e) = stream.take_error()? {
-                            Err(e)?;
-                        }
-                        if e.kind() == io::ErrorKind::NotConnected {
-                            let retry = stream.start_monitor_if_needed(Interest::Write)?;
-                            *self = ConnectInner::Connecting(stream);
-                            if retry {
-                                self.poll()
-                            } else {
-                                Ok(Async::NotReady)
-                            }
+            ConnectInner::Connecting(mut stream) => match stream.peer_addr() {
+                Ok(_) => Ok(Async::Ready(stream)),
+                Err(e) => {
+                    if let Some(e) = stream.take_error()? {
+                        Err(e)?;
+                    }
+                    if e.kind() == io::ErrorKind::NotConnected {
+                        let retry = stream.start_monitor_if_needed(Interest::Write)?;
+                        *self = ConnectInner::Connecting(stream);
+                        if retry {
+                            self.poll()
                         } else {
-                            Err(e)
+                            Ok(Async::NotReady)
                         }
+                    } else {
+                        Err(e)
                     }
                 }
-            }
+            },
             ConnectInner::Polled => panic!("Cannot poll ConnectInner twice"),
         }
     }

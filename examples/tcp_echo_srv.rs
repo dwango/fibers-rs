@@ -2,13 +2,13 @@
 // See the LICENSE file at the top-level directory of this distribution.
 
 extern crate clap;
+extern crate fibers;
 extern crate futures;
 extern crate handy_async;
-extern crate fibers;
 
 use std::io;
 use clap::{App, Arg};
-use fibers::{Spawn, Executor, ThreadPoolExecutor};
+use fibers::{Executor, Spawn, ThreadPoolExecutor};
 use futures::{Future, Stream};
 use handy_async::io::{AsyncWrite, ReadFrom};
 use handy_async::pattern::AllowPartial;
@@ -23,9 +23,9 @@ fn main() {
         )
         .get_matches();
     let port = matches.value_of("PORT").unwrap();
-    let addr = format!("0.0.0.0:{}", port).parse().expect(
-        "Invalid TCP bind address",
-    );
+    let addr = format!("0.0.0.0:{}", port)
+        .parse()
+        .expect("Invalid TCP bind address");
 
     let mut executor = ThreadPoolExecutor::new().expect("Cannot create Executor");
     let handle0 = executor.handle();
@@ -46,9 +46,10 @@ fn main() {
                                 rx.map_err(|_| -> io::Error { unreachable!() })
                                     .fold(writer, |writer, buf: Vec<u8>| {
                                         println!("# SEND: {} bytes", buf.len());
-                                        writer.async_write_all(buf).map(|(w, _)| w).map_err(|e| {
-                                            e.into_error()
-                                        })
+                                        writer
+                                            .async_write_all(buf)
+                                            .map(|(w, _)| w)
+                                            .map_err(|e| e.into_error())
                                     })
                                     .then(|r| {
                                         println!("# Writer finished: {:?}", r);
@@ -58,15 +59,14 @@ fn main() {
 
                             // reader
                             let stream = vec![0; 1024].allow_partial().into_stream(reader);
-                            stream.map_err(|e| e.into_error()).fold(
-                                tx,
-                                |tx, (mut buf, len)| {
+                            stream
+                                .map_err(|e| e.into_error())
+                                .fold(tx, |tx, (mut buf, len)| {
                                     buf.truncate(len);
                                     println!("# RECV: {} bytes", buf.len());
                                     tx.send(buf).expect("Cannot send");
                                     Ok(tx) as io::Result<_>
-                                },
-                            )
+                                })
                         })
                         .then(|r| {
                             println!("# Client finished: {:?}", r);

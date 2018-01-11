@@ -61,8 +61,9 @@
 //! an object shared with the senders.
 //! If a corresponding sender finds there is a waiting receiver,
 //! it will resume (reschedule) the fiber, after sending a message.
+use std::fmt;
 use std::sync::mpsc as std_mpsc;
-use futures::{Poll, Async, Stream, Sink, StartSend, AsyncSink};
+use futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream};
 
 use super::Notifier;
 
@@ -145,7 +146,6 @@ pub fn sync_channel<T>(bound: usize) -> (SyncSender<T>, Receiver<T>) {
 /// This receving stream will never fail.
 ///
 /// This structure can be used on both inside and outside of a fiber.
-#[derive(Debug)]
 pub struct Receiver<T> {
     inner: std_mpsc::Receiver<T>,
     notifier: Notifier,
@@ -174,11 +174,15 @@ impl<T> Drop for Receiver<T> {
         self.notifier.notify();
     }
 }
+impl<T> fmt::Debug for Receiver<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Receiver {{ .. }}")
+    }
+}
 
 /// The sending-half of a asynchronous channel.
 ///
 /// This structure can be used on both inside and outside of a fiber.
-#[derive(Debug)]
 pub struct Sender<T> {
     inner: std_mpsc::Sender<T>,
     notifier: Notifier,
@@ -206,11 +210,15 @@ impl<T> Drop for Sender<T> {
         self.notifier.notify();
     }
 }
+impl<T> fmt::Debug for Sender<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Sender {{ .. }}")
+    }
+}
 
 /// The sending-half of a synchronous channel.
 ///
 /// This structure can be used on both inside and outside of a fiber.
-#[derive(Debug)]
 pub struct SyncSender<T> {
     inner: std_mpsc::SyncSender<T>,
     notifier: Notifier,
@@ -243,5 +251,10 @@ impl<T> Clone for SyncSender<T> {
 impl<T> Drop for SyncSender<T> {
     fn drop(&mut self) {
         self.notifier.notify();
+    }
+}
+impl<T> fmt::Debug for SyncSender<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "SyncSender {{ .. }}")
     }
 }

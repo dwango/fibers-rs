@@ -5,11 +5,11 @@ use std::sync::atomic;
 use std::collections::{HashMap, VecDeque};
 use std::sync::mpsc as std_mpsc;
 use std::cell::RefCell;
-use futures::{BoxFuture, Poll, Async};
+use futures::{Async, Future, Poll};
 
 use fiber::{self, Task};
 use io::poll;
-use super::{Spawn, FiberState};
+use super::{FiberState, Spawn};
 
 static mut NEXT_SCHEDULER_ID: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
 
@@ -78,7 +78,9 @@ impl Scheduler {
 
     /// Returns a handle of this scheduler.
     pub fn handle(&self) -> SchedulerHandle {
-        SchedulerHandle { request_tx: self.request_tx.clone() }
+        SchedulerHandle {
+            request_tx: self.request_tx.clone(),
+        }
     }
 
     /// Runs one unit of works.
@@ -123,10 +125,8 @@ impl Scheduler {
     }
     fn spawn_fiber(&mut self, task: Task) {
         let fiber_id = self.next_fiber_id();
-        self.fibers.insert(
-            fiber_id,
-            fiber::FiberState::new(fiber_id, task),
-        );
+        self.fibers
+            .insert(fiber_id, fiber::FiberState::new(fiber_id, task));
         self.schedule(fiber_id);
     }
     fn run_fiber(&mut self, fiber_id: fiber::FiberId) {
@@ -134,10 +134,10 @@ impl Scheduler {
         let is_runnable = {
             CURRENT_CONTEXT.with(|context| {
                 let mut context = context.borrow_mut();
-                if context.scheduler.as_ref().map_or(
-                    true,
-                    |s| s.id != self.scheduler_id,
-                )
+                if context
+                    .scheduler
+                    .as_ref()
+                    .map_or(true, |s| s.id != self.scheduler_id)
                 {
                     context.switch(self);
                 }
@@ -155,7 +155,9 @@ impl Scheduler {
             });
             let fiber = assert_some!(self.fibers.get_mut(&fiber_id));
             finished = fiber.run_once();
-            CURRENT_CONTEXT.with(|context| { context.borrow_mut().fiber = None; });
+            CURRENT_CONTEXT.with(|context| {
+                context.borrow_mut().fiber = None;
+            });
             fiber.is_runnable()
         };
         if finished {
@@ -205,7 +207,7 @@ impl SchedulerHandle {
     }
 }
 impl Spawn for SchedulerHandle {
-    fn spawn_boxed(&self, fiber: BoxFuture<(), ()>) {
+    fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>) {
         let _ = self.request_tx.send(Request::Spawn(Task(fiber)));
     }
 }
@@ -217,7 +219,6 @@ pub struct CurrentScheduler {
     pub poller: poll::PollerHandle,
 }
 
-
 /// Calls `f` with the current execution context.
 ///
 /// If this function is called on the outside of a fiber, it will ignores `f` and returns `None`.
@@ -225,9 +226,7 @@ pub fn with_current_context<F, T>(f: F) -> Option<T>
 where
     F: FnOnce(Context) -> T,
 {
-    CURRENT_CONTEXT.with(|inner_context| {
-        inner_context.borrow_mut().as_context().map(f)
-    })
+    CURRENT_CONTEXT.with(|inner_context| inner_context.borrow_mut().as_context().map(f))
 }
 
 /// The execution context of the currently running fiber.
@@ -244,10 +243,8 @@ impl<'a> Context<'a> {
 
     /// Parks the current fiber.
     pub fn park(&mut self) -> super::Unpark {
-        self.fiber.park(
-            self.scheduler.id,
-            self.scheduler.handle.clone(),
-        )
+        self.fiber
+            .park(self.scheduler.id, self.scheduler.handle.clone())
     }
 
     /// Returns the I/O event poller for this context.
@@ -302,7 +299,7 @@ impl<'a> Context<'a> {
 /// # }
 /// ```
 pub fn yield_poll<T, E>() -> Poll<T, E> {
-    with_current_context(|mut context| context.fiber.yield_once());
+    with_current_context(|context| context.fiber.yield_once());
     Ok(Async::NotReady)
 }
 

@@ -1,12 +1,13 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
+use std::fmt;
 use std::io;
 use std::net::SocketAddr;
-use futures::{Poll, Async, Future};
+use futures::{Async, Future, Poll};
 use mio::net::UdpSocket as MioUdpSocket;
 
-use io::poll::{Interest, EventedHandle};
+use io::poll::{EventedHandle, Interest};
 use sync::oneshot::Monitor;
 use super::{into_io_error, Bind};
 
@@ -55,7 +56,7 @@ use super::{into_io_error, Bind};
 /// }
 /// # }
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct UdpSocket {
     handle: EventedHandle<MioUdpSocket>,
 }
@@ -106,6 +107,16 @@ impl UdpSocket {
         f(&*self.handle.inner())
     }
 }
+impl fmt::Debug for UdpSocket {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "UdpSocket {{ ")?;
+        if let Ok(addr) = self.local_addr() {
+            write!(f, "local_addr:{:?}, ", addr)?;
+        }
+        write!(f, ".. }}")?;
+        Ok(())
+    }
+}
 
 /// A future which will create a UDP socket binded to the given address.
 ///
@@ -152,10 +163,11 @@ impl<B: AsRef<[u8]>> Future for SendTo<B> {
                     Ok(Async::Ready(())) => {}
                 }
             } else {
-                let result = state.socket.handle.inner().send_to(
-                    state.buf.as_ref(),
-                    &state.target,
-                );
+                let result = state
+                    .socket
+                    .handle
+                    .inner()
+                    .send_to(state.buf.as_ref(), &state.target);
                 match result {
                     Err(e) => {
                         if e.kind() == io::ErrorKind::WouldBlock {

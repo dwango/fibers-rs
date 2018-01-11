@@ -33,7 +33,7 @@ pub fn stdin() -> Stdin {
             let mut locked_stdin = stdin.lock();
 
             // # (2) Readability Check Phase
-            break_if_err!(locked_stdin.read(&mut []));
+            let _ = break_if_err!(locked_stdin.read(&mut []));
             break_if_err!(res_tx.send(Ok(Vec::new())));
 
             // # (3) Read Phase

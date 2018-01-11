@@ -23,7 +23,7 @@ use std::fmt;
 use std::error;
 use std::net::SocketAddr;
 use mio;
-use futures::{Poll, Async, Future};
+use futures::{Async, Future, Poll};
 
 pub use self::udp::UdpSocket;
 pub use self::tcp::{TcpListener, TcpStream};
@@ -33,8 +33,8 @@ use io::poll::{EventedHandle, Register};
 
 pub mod futures {
     //! Implementations of `futures::Future` trait.
-    pub use super::udp::{UdpSocketBind, SendTo, RecvFrom};
-    pub use super::tcp::{TcpListenerBind, Connect, Connected};
+    pub use super::udp::{RecvFrom, SendTo, UdpSocketBind};
+    pub use super::tcp::{Connect, Connected, TcpListenerBind};
 }
 pub mod streams {
     //! Implementations of `futures::Stream` trait.
@@ -60,9 +60,8 @@ where
         match mem::replace(self, Bind::Polled) {
             Bind::Bind(addr, bind) => {
                 let socket = bind(&addr)?;
-                let register = assert_some!(fiber::with_current_context(
-                    |mut c| c.poller().register(socket),
-                ));
+                let register = assert_some!(fiber::with_current_context(|mut c| c.poller()
+                    .register(socket),));
                 *self = Bind::Registering(register);
                 self.poll()
             }

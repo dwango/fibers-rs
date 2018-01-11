@@ -13,11 +13,13 @@ pub struct AtomicCell<T> {
 impl<T> AtomicCell<T> {
     pub fn new(inner: T) -> Self {
         let boxed = Box::new(inner);
-        AtomicCell { inner: AtomicPtr::new(Box::into_raw(boxed)) }
+        AtomicCell {
+            inner: AtomicPtr::new(Box::into_raw(boxed)),
+        }
     }
     pub fn try_borrow_mut(&self) -> Option<AtomicBorrowMut<T>> {
         let old = self.inner.swap(ptr::null_mut(), atomic::Ordering::SeqCst);
-        if old == ptr::null_mut() {
+        if old.is_null() {
             None
         } else {
             let inner = unsafe { Box::from_raw(old) };
