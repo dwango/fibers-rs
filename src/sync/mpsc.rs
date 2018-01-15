@@ -62,8 +62,9 @@
 //! If a corresponding sender finds there is a waiting receiver,
 //! it will resume (reschedule) the fiber, after sending a message.
 use std::fmt;
-use std::sync::mpsc as std_mpsc;
+use std::sync::mpsc::{SendError, TryRecvError, TrySendError};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream};
+use nbchan::mpsc as nb_mpsc;
 
 use super::Notifier;
 
@@ -112,7 +113,7 @@ use super::Notifier;
 /// ```
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let notifier = Notifier::new();
-    let (tx, rx) = std_mpsc::channel();
+    let (tx, rx) = nb_mpsc::channel();
     (
         Sender {
             inner: tx,
@@ -128,7 +129,7 @@ pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
 /// Creates a new synchronous, bounded channel.
 pub fn sync_channel<T>(bound: usize) -> (SyncSender<T>, Receiver<T>) {
     let notifier = Notifier::new();
-    let (tx, rx) = std_mpsc::sync_channel(bound);
+    let (tx, rx) = nb_mpsc::sync_channel(bound);
     (
         SyncSender {
             inner: tx,
@@ -147,7 +148,7 @@ pub fn sync_channel<T>(bound: usize) -> (SyncSender<T>, Receiver<T>) {
 ///
 /// This structure can be used on both inside and outside of a fiber.
 pub struct Receiver<T> {
-    inner: std_mpsc::Receiver<T>,
+    inner: nb_mpsc::Receiver<T>,
     notifier: Notifier,
 }
 impl<T> Stream for Receiver<T> {
@@ -158,13 +159,13 @@ impl<T> Stream for Receiver<T> {
     type Item = T;
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         let mut result = self.inner.try_recv();
-        if let Err(std_mpsc::TryRecvError::Empty) = result {
+        if let Err(TryRecvError::Empty) = result {
             self.notifier.await();
             result = self.inner.try_recv();
         }
         match result {
-            Err(std_mpsc::TryRecvError::Empty) => Ok(Async::NotReady),
-            Err(std_mpsc::TryRecvError::Disconnected) => Ok(Async::Ready(None)),
+            Err(TryRecvError::Empty) => Ok(Async::NotReady),
+            Err(TryRecvError::Disconnected) => Ok(Async::Ready(None)),
             Ok(t) => Ok(Async::Ready(Some(t))),
         }
     }
@@ -184,19 +185,20 @@ impl<T> fmt::Debug for Receiver<T> {
 ///
 /// This structure can be used on both inside and outside of a fiber.
 pub struct Sender<T> {
-    inner: std_mpsc::Sender<T>,
+    inner: nb_mpsc::Sender<T>,
     notifier: Notifier,
 }
 impl<T> Sender<T> {
     /// Sends a value on this asynchronous channel.
     ///
     /// This method will never block the current thread.
-    pub fn send(&self, t: T) -> Result<(), std_mpsc::SendError<T>> {
+    pub fn send(&self, t: T) -> Result<(), SendError<T>> {
         self.inner.send(t)?;
         self.notifier.notify();
         Ok(())
     }
 }
+unsafe impl<T: Send> Sync for Sender<T> {}
 impl<T> Clone for Sender<T> {
     fn clone(&self) -> Self {
         Sender {
@@ -220,16 +222,16 @@ impl<T> fmt::Debug for Sender<T> {
 ///
 /// This structure can be used on both inside and outside of a fiber.
 pub struct SyncSender<T> {
-    inner: std_mpsc::SyncSender<T>,
+    inner: nb_mpsc::SyncSender<T>,
     notifier: Notifier,
 }
 impl<T> Sink for SyncSender<T> {
     type SinkItem = T;
-    type SinkError = std_mpsc::SendError<T>;
+    type SinkError = SendError<T>;
     fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
         match self.inner.try_send(item) {
-            Err(std_mpsc::TrySendError::Full(item)) => Ok(AsyncSink::NotReady(item)),
-            Err(std_mpsc::TrySendError::Disconnected(item)) => Err(std_mpsc::SendError(item)),
+            Err(TrySendError::Full(item)) => Ok(AsyncSink::NotReady(item)),
+            Err(TrySendError::Disconnected(item)) => Err(SendError(item)),
             Ok(()) => {
                 self.notifier.notify();
                 Ok(AsyncSink::Ready)
@@ -240,6 +242,7 @@ impl<T> Sink for SyncSender<T> {
         Ok(Async::Ready(()))
     }
 }
+unsafe impl<T: Send> Sync for SyncSender<T> {}
 impl<T> Clone for SyncSender<T> {
     fn clone(&self) -> Self {
         SyncSender {

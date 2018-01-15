@@ -4,9 +4,10 @@
 use std::io;
 use std::time;
 use std::thread;
-use std::sync::mpsc as std_mpsc;
-use num_cpus;
+use std::sync::mpsc::TryRecvError;
 use futures::{Async, Future};
+use nbchan::mpsc as nb_mpsc;
+use num_cpus;
 
 use fiber::{self, Spawn};
 use io::poll;
@@ -47,8 +48,8 @@ use super::Executor;
 pub struct ThreadPoolExecutor {
     pool: SchedulerPool,
     pollers: PollerPool,
-    spawn_rx: std_mpsc::Receiver<Task>,
-    spawn_tx: std_mpsc::Sender<Task>,
+    spawn_rx: nb_mpsc::Receiver<Task>,
+    spawn_tx: nb_mpsc::Sender<Task>,
     round: usize,
     steps: usize,
 }
@@ -80,7 +81,7 @@ impl ThreadPoolExecutor {
         assert!(count > 0);
         let pollers = PollerPool::new(count)?;
         let schedulers = SchedulerPool::new(&pollers);
-        let (tx, rx) = std_mpsc::channel();
+        let (tx, rx) = nb_mpsc::channel();
         Ok(ThreadPoolExecutor {
             pool: schedulers,
             pollers: pollers,
@@ -100,10 +101,10 @@ impl Executor for ThreadPoolExecutor {
     }
     fn run_once(&mut self) -> io::Result<()> {
         match self.spawn_rx.try_recv() {
-            Err(std_mpsc::TryRecvError::Empty) => {
+            Err(TryRecvError::Empty) => {
                 thread::sleep(time::Duration::from_millis(1));
             }
-            Err(std_mpsc::TryRecvError::Disconnected) => unreachable!(),
+            Err(TryRecvError::Disconnected) => unreachable!(),
             Ok(task) => {
                 let i = self.round % self.pool.schedulers.len();
                 self.pool.schedulers[i].spawn_boxed(task.0);
@@ -131,7 +132,7 @@ impl Spawn for ThreadPoolExecutor {
 /// A handle of a `ThreadPoolExecutor` instance.
 #[derive(Debug, Clone)]
 pub struct ThreadPoolExecutorHandle {
-    spawn_tx: std_mpsc::Sender<Task>,
+    spawn_tx: nb_mpsc::Sender<Task>,
 }
 impl Spawn for ThreadPoolExecutorHandle {
     fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>) {

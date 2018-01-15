@@ -5,7 +5,7 @@
 pub mod timer {
     //! Timer
     use std::time;
-    use std::sync::mpsc as std_mpsc;
+    use std::sync::mpsc::RecvError;
     use futures::{Async, Future, Poll};
 
     use io::poll;
@@ -67,7 +67,7 @@ pub mod timer {
     }
     impl Future for Timeout {
         type Item = ();
-        type Error = std_mpsc::RecvError;
+        type Error = RecvError;
         fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
             if let Some(ref mut inner) = self.inner {
                 inner.poll()

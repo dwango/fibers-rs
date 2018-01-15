@@ -5,18 +5,19 @@ use std::io;
 use std::fmt;
 use std::time;
 use std::collections::HashMap;
-use std::sync::mpsc as std_mpsc;
+use std::sync::mpsc::{RecvError, TryRecvError};
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicUsize};
 use futures::{self, Future};
 use mio;
+use nbchan::mpsc as nb_mpsc;
 
 use sync::oneshot;
 use collections::HeapMap;
 use super::{EventedLock, Interest, SharableEvented};
 
-type RequestSender = std_mpsc::Sender<Request>;
-type RequestReceiver = std_mpsc::Receiver<Request>;
+type RequestSender = nb_mpsc::Sender<Request>;
+type RequestReceiver = nb_mpsc::Receiver<Request>;
 
 /// The default capacity of the event buffer of a poller.
 pub const DEFAULT_EVENTS_CAPACITY: usize = 128;
@@ -84,7 +85,7 @@ impl Poller {
     /// (https://docs.rs/mio/0.6.1/mio/struct.Events.html#method.with_capacity).
     pub fn with_capacity(capacity: usize) -> io::Result<Self> {
         let poll = mio::Poll::new()?;
-        let (tx, rx) = std_mpsc::channel();
+        let (tx, rx) = nb_mpsc::channel();
         Ok(Poller {
             poll: poll,
             events: MioEvents(mio::Events::with_capacity(capacity)),
@@ -113,8 +114,8 @@ impl Poller {
 
         // Request
         match self.request_rx.try_recv() {
-            Err(std_mpsc::TryRecvError::Empty) => {}
-            Err(std_mpsc::TryRecvError::Disconnected) => unreachable!(),
+            Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Disconnected) => unreachable!(),
             Ok(r) => {
                 did_something = true;
                 self.handle_request(r)?;
@@ -310,7 +311,7 @@ pub struct Timeout {
 }
 impl Future for Timeout {
     type Item = ();
-    type Error = std_mpsc::RecvError;
+    type Error = RecvError;
     fn poll(&mut self) -> futures::Poll<Self::Item, Self::Error> {
         let result = self.rx.poll();
         if result != Ok(futures::Async::NotReady) {
@@ -334,7 +335,7 @@ pub struct Register<T> {
 }
 impl<T> Future for Register<T> {
     type Item = EventedHandle<T>;
-    type Error = std_mpsc::RecvError;
+    type Error = RecvError;
     fn poll(&mut self) -> futures::Poll<Self::Item, Self::Error> {
         self.rx.poll()
     }
