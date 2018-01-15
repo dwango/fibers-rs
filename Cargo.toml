@@ -1,6 +1,6 @@
 [package]
 name = "fibers"
-version = "0.1.8"
+version = "0.1.9"
 authors = ["Takeru Ohta <takeru_ohta@dwango.co.jp>"]
 description = "A Rust library to execute a number of lightweight asynchronous tasks (a.k.a, fibers) based on futures and mio"
 homepage = "https://github.com/dwango/fibers-rs"
