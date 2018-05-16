@@ -55,7 +55,7 @@ impl InPlaceExecutor {
         let poller = poll::Poller::new()?;
         Ok(InPlaceExecutor {
             scheduler: fiber::Scheduler::new(poller.handle()),
-            poller: poller,
+            poller,
         })
     }
 }

@@ -124,7 +124,7 @@ impl Future for TcpListenerBind {
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         Ok(self.0.poll()?.map(|handle| TcpListener {
-            handle: handle,
+            handle,
             monitor: None,
         }))
     }
@@ -276,7 +276,7 @@ impl Clone for TcpStream {
 impl TcpStream {
     fn new(handle: EventedHandle<MioTcpStream>) -> Self {
         TcpStream {
-            handle: handle,
+            handle,
             read_monitor: None,
             write_monitor: None,
         }

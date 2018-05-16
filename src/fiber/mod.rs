@@ -57,7 +57,10 @@ pub trait Spawn {
         E: Send + 'static,
     {
         let (monitored, monitor) = oneshot::monitor();
-        self.spawn(f.then(move |r| Ok(monitored.exit(r))));
+        self.spawn(f.then(move |r| {
+            monitored.exit(r);
+            Ok(())
+        }));
         monitor
     }
 
@@ -153,8 +156,8 @@ struct FiberState {
 impl FiberState {
     pub fn new(fiber_id: FiberId, task: Task) -> Self {
         FiberState {
-            fiber_id: fiber_id,
-            task: task,
+            fiber_id,
+            task,
             parks: 0,
             unparks: Arc::new(AtomicUsize::new(0)),
             in_run_queue: false,
@@ -183,8 +186,8 @@ impl FiberState {
         Unpark {
             fiber_id: self.fiber_id,
             unparks: Arc::clone(&self.unparks),
-            scheduler_id: scheduler_id,
-            scheduler: scheduler,
+            scheduler_id,
+            scheduler,
         }
     }
     pub fn yield_once(&mut self) {

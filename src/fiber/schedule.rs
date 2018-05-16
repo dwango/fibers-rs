@@ -55,9 +55,9 @@ impl Scheduler {
             next_fiber_id: 0,
             fibers: HashMap::new(),
             run_queue: VecDeque::new(),
-            request_tx: request_tx,
-            request_rx: request_rx,
-            poller: poller,
+            request_tx,
+            request_rx,
+            poller,
         }
     }
 
@@ -327,10 +327,7 @@ impl InnerContext {
         if let Some(scheduler) = self.scheduler.as_mut() {
             if let Some(fiber) = self.fiber {
                 let fiber = unsafe { &mut *fiber };
-                return Some(Context {
-                    scheduler: scheduler,
-                    fiber: fiber,
-                });
+                return Some(Context { scheduler, fiber });
             }
         }
         None

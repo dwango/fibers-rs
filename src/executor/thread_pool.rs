@@ -84,7 +84,7 @@ impl ThreadPoolExecutor {
         let (tx, rx) = nb_mpsc::channel();
         Ok(ThreadPoolExecutor {
             pool: schedulers,
-            pollers: pollers,
+            pollers,
             spawn_tx: tx,
             spawn_rx: rx,
             round: 0,
@@ -164,10 +164,7 @@ impl PollerPool {
                 }
             });
         }
-        Ok(PollerPool {
-            pollers: pollers,
-            links: links,
-        })
+        Ok(PollerPool { pollers, links })
     }
 }
 
@@ -191,9 +188,6 @@ impl SchedulerPool {
                 }
             });
         }
-        SchedulerPool {
-            schedulers: schedulers,
-            links: links,
-        }
+        SchedulerPool { schedulers, links }
     }
 }

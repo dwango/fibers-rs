@@ -48,8 +48,8 @@ pub fn stdin() -> Stdin {
     });
     Stdin {
         lock_requested: false,
-        req_tx: req_tx,
-        res_rx: res_rx,
+        req_tx,
+        res_rx,
     }
 }
 

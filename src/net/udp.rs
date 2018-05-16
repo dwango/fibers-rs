@@ -70,8 +70,8 @@ impl UdpSocket {
     pub fn send_to<B: AsRef<[u8]>>(self, buf: B, target: SocketAddr) -> SendTo<B> {
         SendTo(Some(SendToInner {
             socket: self,
-            buf: buf,
-            target: target,
+            buf,
+            target,
             monitor: None,
         }))
     }
@@ -80,7 +80,7 @@ impl UdpSocket {
     pub fn recv_from<B: AsMut<[u8]>>(self, buf: B) -> RecvFrom<B> {
         RecvFrom(Some(RecvFromInner {
             socket: self,
-            buf: buf,
+            buf,
             monitor: None,
         }))
     }
@@ -132,7 +132,7 @@ impl Future for UdpSocketBind {
     type Item = UdpSocket;
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        Ok(self.0.poll()?.map(|handle| UdpSocket { handle: handle }))
+        Ok(self.0.poll()?.map(|handle| UdpSocket { handle }))
     }
 }
 
