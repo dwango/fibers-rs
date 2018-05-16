@@ -186,7 +186,6 @@
 #![warn(missing_docs)]
 
 extern crate futures;
-extern crate handy_async;
 extern crate mio;
 extern crate nbchan;
 extern crate num_cpus;

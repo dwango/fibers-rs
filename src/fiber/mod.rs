@@ -6,8 +6,7 @@
 //! Those are mainly exported for developers.
 //! So, usual users do not need to be conscious.
 use futures::future::Either;
-use futures::{self, Async, Future, IntoFuture};
-use handy_async::future::FutureExt;
+use futures::{self, Async, Future, IntoFuture, Poll};
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicUsize};
@@ -95,7 +94,7 @@ pub trait Spawn {
         E: Send + 'static,
     {
         let (link0, link1) = oneshot::link();
-        let future = f.select_either(link1).then(|result| {
+        let future = SelectEither::new(f, link1).then(|result| {
             match result {
                 Err(Either::A((result, link1))) => {
                     link1.exit(Err(result));
@@ -227,5 +226,31 @@ pub(crate) struct Task(pub FiberFuture);
 impl fmt::Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Task(_)")
+    }
+}
+
+struct SelectEither<A, B>(Option<(A, B)>);
+impl<A: Future, B: Future> SelectEither<A, B> {
+    fn new(a: A, b: B) -> Self {
+        SelectEither(Some((a, b)))
+    }
+}
+impl<A: Future, B: Future> Future for SelectEither<A, B> {
+    type Item = Either<(A::Item, B), (A, B::Item)>;
+    type Error = Either<(A::Error, B), (A, B::Error)>;
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        let (mut a, mut b) = self.0.take().expect("Cannot poll SelectEither twice");
+        match a.poll() {
+            Err(e) => return Err(Either::A((e, b))),
+            Ok(Async::Ready(v)) => return Ok(Async::Ready(Either::A((v, b)))),
+            Ok(Async::NotReady) => {}
+        }
+        match b.poll() {
+            Err(e) => return Err(Either::B((a, e))),
+            Ok(Async::Ready(v)) => return Ok(Async::Ready(Either::B((a, v)))),
+            Ok(Async::NotReady) => {}
+        }
+        self.0 = Some((a, b));
+        Ok(Async::NotReady)
     }
 }
