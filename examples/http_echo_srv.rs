@@ -7,12 +7,12 @@ extern crate futures;
 extern crate handy_async;
 extern crate httparse;
 
-use std::io;
 use clap::{App, Arg};
+use fibers::{Executor, Spawn, ThreadPoolExecutor};
+use futures::{Future, Stream};
 use handy_async::io::{ReadFrom, WriteInto};
 use handy_async::pattern::{self, Branch, Pattern, Window};
-use futures::{Future, Stream};
-use fibers::{Executor, Spawn, ThreadPoolExecutor};
+use std::io;
 
 fn main() {
     let matches = App::new("http_echo_srv")

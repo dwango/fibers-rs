@@ -17,32 +17,32 @@
 //! indicates the socket becomes available.
 //! After that, when the event happens, the fiber will be resumed and
 //! rescheduled for next execution.
+use futures::{Async, Future, Poll};
+use mio;
+use std::error;
+use std::fmt;
 use std::io;
 use std::mem;
-use std::fmt;
-use std::error;
 use std::net::SocketAddr;
-use mio;
-use futures::{Async, Future, Poll};
 
-pub use self::udp::UdpSocket;
 pub use self::tcp::{TcpListener, TcpStream};
+pub use self::udp::UdpSocket;
 
 use fiber;
 use io::poll::{EventedHandle, Register};
 
 pub mod futures {
     //! Implementations of `futures::Future` trait.
-    pub use super::udp::{RecvFrom, SendTo, UdpSocketBind};
     pub use super::tcp::{Connect, Connected, TcpListenerBind};
+    pub use super::udp::{RecvFrom, SendTo, UdpSocketBind};
 }
 pub mod streams {
     //! Implementations of `futures::Stream` trait.
     pub use super::tcp::Incoming;
 }
 
-mod udp;
 mod tcp;
+mod udp;
 
 enum Bind<F, T> {
     Bind(SocketAddr, F),
@@ -60,8 +60,8 @@ where
         match mem::replace(self, Bind::Polled) {
             Bind::Bind(addr, bind) => {
                 let socket = bind(&addr)?;
-                let register = assert_some!(fiber::with_current_context(|mut c| c.poller()
-                    .register(socket),));
+                let register =
+                    assert_some!(fiber::with_current_context(|mut c| c.poller().register(socket),));
                 *self = Bind::Registering(register);
                 self.poll()
             }

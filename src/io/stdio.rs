@@ -2,11 +2,11 @@
 // See the LICENSE file at the top-level directory of this distribution.
 
 //! Non-blocking variants of standard I/O streams.
-use std::io::{self, Read};
-use std::error;
-use std::thread;
-use std::sync::mpsc as std_mpsc;
 use futures::{Async, Stream};
+use std::error;
+use std::io::{self, Read};
+use std::sync::mpsc as std_mpsc;
+use std::thread;
 
 use sync::mpsc as fibers_mpsc;
 
@@ -14,9 +14,9 @@ macro_rules! break_if_err {
     ($e:expr) => {
         match $e {
             Err(_) => break,
-            Ok(v) => v
+            Ok(v) => v,
         }
-    }
+    };
 }
 
 /// Returns a non-blocking variant of the standard input stream (i.e., `std::io::Stdin`).

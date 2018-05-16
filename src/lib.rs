@@ -194,9 +194,13 @@ extern crate splay_tree;
 
 macro_rules! assert_some {
     ($e:expr) => {
-        $e.expect(&format!("[{}:{}] {:?} must be a Some(..)",
-                           file!(), line!(), stringify!($e)))
-    }
+        $e.expect(&format!(
+            "[{}:{}] {:?} must be a Some(..)",
+            file!(),
+            line!(),
+            stringify!($e)
+        ))
+    };
 }
 
 #[doc(inline)]
@@ -205,12 +209,12 @@ pub use self::executor::{Executor, InPlaceExecutor, ThreadPoolExecutor};
 #[doc(inline)]
 pub use self::fiber::{BoxSpawn, Spawn};
 
+pub mod executor;
+pub mod fiber;
 pub mod io;
 pub mod net;
 pub mod sync;
 pub mod time;
-pub mod fiber;
-pub mod executor;
 
 mod collections;
 mod sync_atomic;

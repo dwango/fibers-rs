@@ -1,15 +1,15 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
+use futures::{Async, Future, Poll};
+use mio::net::UdpSocket as MioUdpSocket;
 use std::fmt;
 use std::io;
 use std::net::SocketAddr;
-use futures::{Async, Future, Poll};
-use mio::net::UdpSocket as MioUdpSocket;
 
+use super::{into_io_error, Bind};
 use io::poll::{EventedHandle, Interest};
 use sync::oneshot::Monitor;
-use super::{into_io_error, Bind};
 
 /// A User Datagram Protocol socket.
 ///

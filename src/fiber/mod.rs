@@ -5,15 +5,15 @@
 //!
 //! Those are mainly exported for developers.
 //! So, usual users do not need to be conscious.
+use futures::future::Either;
+use futures::{self, Async, Future, IntoFuture};
+use handy_async::future::FutureExt;
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicUsize};
-use futures::{self, Async, Future, IntoFuture};
-use futures::future::Either;
-use handy_async::future::FutureExt;
 
-pub use self::schedule::{Scheduler, SchedulerHandle, SchedulerId};
 pub use self::schedule::{with_current_context, yield_poll, Context};
+pub use self::schedule::{Scheduler, SchedulerHandle, SchedulerId};
 
 use sync::oneshot::{self, Link, Monitor};
 

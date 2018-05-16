@@ -61,10 +61,10 @@
 //! an object shared with the senders.
 //! If a corresponding sender finds there is a waiting receiver,
 //! it will resume (reschedule) the fiber, after sending a message.
-use std::fmt;
-use std::sync::mpsc::{SendError, TryRecvError, TrySendError};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream};
 use nbchan::mpsc as nb_mpsc;
+use std::fmt;
+use std::sync::mpsc::{SendError, TryRecvError, TrySendError};
 
 use super::Notifier;
 

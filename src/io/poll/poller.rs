@@ -1,20 +1,20 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
-use std::io;
-use std::fmt;
-use std::time;
-use std::collections::HashMap;
-use std::sync::mpsc::{RecvError, TryRecvError};
-use std::sync::Arc;
-use std::sync::atomic::{self, AtomicUsize};
 use futures::{self, Future};
 use mio;
 use nbchan::mpsc as nb_mpsc;
+use std::collections::HashMap;
+use std::fmt;
+use std::io;
+use std::sync::Arc;
+use std::sync::atomic::{self, AtomicUsize};
+use std::sync::mpsc::{RecvError, TryRecvError};
+use std::time;
 
-use sync::oneshot;
-use collections::HeapMap;
 use super::{EventedLock, Interest, SharableEvented};
+use collections::HeapMap;
+use sync::oneshot;
 
 type RequestSender = nb_mpsc::Sender<Request>;
 type RequestReceiver = nb_mpsc::Receiver<Request>;

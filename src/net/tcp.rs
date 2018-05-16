@@ -1,18 +1,18 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
+use futures::{Async, Future, Poll, Stream};
+use mio;
+use mio::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 use std::fmt;
 use std::io;
 use std::mem;
 use std::net::SocketAddr;
-use futures::{Async, Future, Poll, Stream};
-use mio;
-use mio::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 
+use super::{into_io_error, Bind};
 use fiber::{self, Context};
 use io::poll::{EventedHandle, Interest, Register};
 use sync::oneshot::Monitor;
-use super::{into_io_error, Bind};
 
 /// A structure representing a socket server.
 ///
@@ -419,8 +419,8 @@ impl Future for ConnectInner {
         match mem::replace(self, ConnectInner::Polled) {
             ConnectInner::Connect(addr) => {
                 let stream = MioTcpStream::connect(&addr)?;
-                let register = assert_some!(fiber::with_current_context(|mut c| c.poller()
-                    .register(stream),));
+                let register =
+                    assert_some!(fiber::with_current_context(|mut c| c.poller().register(stream),));
                 *self = ConnectInner::Registering(register);
                 self.poll()
             }

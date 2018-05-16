@@ -5,9 +5,9 @@ extern crate fibers;
 extern crate futures;
 extern crate handy_async;
 
-use fibers::{Executor, Spawn, ThreadPoolExecutor};
 use fibers::net::{TcpListener, TcpStream};
 use fibers::sync::oneshot;
+use fibers::{Executor, Spawn, ThreadPoolExecutor};
 use futures::{Future, Stream};
 use handy_async::io::{AsyncRead, AsyncWrite};
 

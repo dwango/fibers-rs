@@ -15,11 +15,11 @@
 //!
 //! The former essentially have the same semantics as the latter.
 //! But those are useful to clarify the intention of programmers.
-use std::fmt;
-use std::error;
-use std::sync::mpsc::{RecvError, SendError};
 use futures::{Async, Future, Poll};
 use nbchan;
+use std::error;
+use std::fmt;
+use std::sync::mpsc::{RecvError, SendError};
 
 use super::Notifier;
 
