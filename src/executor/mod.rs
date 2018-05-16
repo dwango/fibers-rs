@@ -2,8 +2,8 @@
 // See the LICENSE file at the top-level directory of this distribution.
 
 //! The `Executor` trait and its implementations.
-use std::io;
 use futures::{Async, Future};
+use std::io;
 
 pub use self::in_place::{InPlaceExecutor, InPlaceExecutorHandle};
 pub use self::thread_pool::{ThreadPoolExecutor, ThreadPoolExecutorHandle};

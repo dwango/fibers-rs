@@ -1,19 +1,19 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
-use std::io;
-use std::time;
-use std::thread;
-use std::sync::mpsc::TryRecvError;
 use futures::{Async, Future};
 use nbchan::mpsc as nb_mpsc;
 use num_cpus;
+use std::io;
+use std::sync::mpsc::TryRecvError;
+use std::thread;
+use std::time;
 
+use super::Executor;
+use fiber::Task;
 use fiber::{self, Spawn};
 use io::poll;
 use sync::oneshot::{self, Link};
-use fiber::Task;
-use super::Executor;
 
 /// An executor that executes spawned fibers on pooled threads.
 ///
@@ -84,7 +84,7 @@ impl ThreadPoolExecutor {
         let (tx, rx) = nb_mpsc::channel();
         Ok(ThreadPoolExecutor {
             pool: schedulers,
-            pollers: pollers,
+            pollers,
             spawn_tx: tx,
             spawn_rx: rx,
             round: 0,
@@ -164,10 +164,7 @@ impl PollerPool {
                 }
             });
         }
-        Ok(PollerPool {
-            pollers: pollers,
-            links: links,
-        })
+        Ok(PollerPool { pollers, links })
     }
 }
 
@@ -191,9 +188,6 @@ impl SchedulerPool {
                 }
             });
         }
-        SchedulerPool {
-            schedulers: schedulers,
-            links: links,
-        }
+        SchedulerPool { schedulers, links }
     }
 }

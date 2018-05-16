@@ -6,12 +6,12 @@ extern crate fibers;
 extern crate futures;
 extern crate handy_async;
 
-use std::io;
 use clap::{App, Arg};
 use fibers::{Executor, Spawn, ThreadPoolExecutor};
 use futures::{Future, Stream};
 use handy_async::io::{AsyncWrite, ReadFrom};
 use handy_async::pattern::AllowPartial;
+use std::io;
 
 fn main() {
     let matches = App::new("tcp_echo_srv")

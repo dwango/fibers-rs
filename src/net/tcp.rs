@@ -1,18 +1,18 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
+use futures::{Async, Future, Poll, Stream};
+use mio;
+use mio::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 use std::fmt;
 use std::io;
 use std::mem;
 use std::net::SocketAddr;
-use futures::{Async, Future, Poll, Stream};
-use mio;
-use mio::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 
+use super::{into_io_error, Bind};
 use fiber::{self, Context};
 use io::poll::{EventedHandle, Interest, Register};
 use sync::oneshot::Monitor;
-use super::{into_io_error, Bind};
 
 /// A structure representing a socket server.
 ///
@@ -124,7 +124,7 @@ impl Future for TcpListenerBind {
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         Ok(self.0.poll()?.map(|handle| TcpListener {
-            handle: handle,
+            handle,
             monitor: None,
         }))
     }
@@ -276,7 +276,7 @@ impl Clone for TcpStream {
 impl TcpStream {
     fn new(handle: EventedHandle<MioTcpStream>) -> Self {
         TcpStream {
-            handle: handle,
+            handle,
             read_monitor: None,
             write_monitor: None,
         }
@@ -304,6 +304,16 @@ impl TcpStream {
     /// This can be useful for checking errors between calls.
     pub fn take_error(&self) -> io::Result<Option<io::Error>> {
         self.handle.inner().take_error()
+    }
+
+    /// Gets the value of the `TCP_NODELAY` option on this socket.
+    pub fn nodelay(&self) -> io::Result<bool> {
+        self.handle.inner().nodelay()
+    }
+
+    /// Sets the value of the `TCP_NODELAY `option on this socket.
+    pub fn set_nodelay(&self, nodelay: bool) -> io::Result<()> {
+        self.handle.inner().set_nodelay(nodelay)
     }
 
     /// Calls `f` with the reference to the inner socket.
@@ -419,8 +429,8 @@ impl Future for ConnectInner {
         match mem::replace(self, ConnectInner::Polled) {
             ConnectInner::Connect(addr) => {
                 let stream = MioTcpStream::connect(&addr)?;
-                let register = assert_some!(fiber::with_current_context(|mut c| c.poller()
-                    .register(stream),));
+                let register =
+                    assert_some!(fiber::with_current_context(|mut c| c.poller().register(stream),));
                 *self = ConnectInner::Registering(register);
                 self.poll()
             }

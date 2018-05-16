@@ -1,13 +1,13 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
+use futures::Future;
 use std::io;
 use std::time;
-use futures::Future;
 
+use super::Executor;
 use fiber::{self, Spawn};
 use io::poll;
-use super::Executor;
 
 /// An executor that executes spawned fibers and I/O event polling on current thread.
 ///
@@ -55,7 +55,7 @@ impl InPlaceExecutor {
         let poller = poll::Poller::new()?;
         Ok(InPlaceExecutor {
             scheduler: fiber::Scheduler::new(poller.handle()),
-            poller: poller,
+            poller,
         })
     }
 }

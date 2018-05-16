@@ -9,13 +9,13 @@
 //! # Implementation Details
 //!
 //! This module is a wrapper of the [mio](https://github.com/carllerche/mio) crate.
+use mio;
 use std::io;
 use std::ops;
 use std::sync::Arc;
-use mio;
 
-pub use self::poller::{EventedHandle, Poller, PollerHandle};
 pub use self::poller::{Register, DEFAULT_EVENTS_CAPACITY};
+pub use self::poller::{EventedHandle, Poller, PollerHandle};
 
 use sync_atomic::{AtomicBorrowMut, AtomicCell};
 

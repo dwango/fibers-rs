@@ -4,12 +4,12 @@
 //! Time related functionalities.
 pub mod timer {
     //! Timer
-    use std::time;
-    use std::sync::mpsc::RecvError;
     use futures::{Async, Future, Poll};
+    use std::sync::mpsc::RecvError;
+    use std::time;
 
-    use io::poll;
     use fiber::{self, Context};
+    use io::poll;
 
     /// A timer related extension of the `Future` trait.
     pub trait TimerExt: Sized + Future {
@@ -94,9 +94,9 @@ pub mod timer {
 
     #[cfg(test)]
     mod test {
-        use std::time::Duration;
-        use futures::{self, Async, Future};
         use super::*;
+        use futures::{self, Async, Future};
+        use std::time::Duration;
 
         #[test]
         fn it_works() {

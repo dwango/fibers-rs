@@ -45,7 +45,7 @@ pub struct AtomicBorrowMut<'a, T: 'a> {
 impl<'a, T> AtomicBorrowMut<'a, T> {
     fn new(owner: &'a AtomicCell<T>, inner: Box<T>) -> Self {
         AtomicBorrowMut {
-            owner: owner,
+            owner,
             inner: Some(inner),
         }
     }

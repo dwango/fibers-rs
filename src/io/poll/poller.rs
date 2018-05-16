@@ -1,20 +1,20 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
-use std::io;
-use std::fmt;
-use std::time;
-use std::collections::HashMap;
-use std::sync::mpsc::{RecvError, TryRecvError};
-use std::sync::Arc;
-use std::sync::atomic::{self, AtomicUsize};
 use futures::{self, Future};
 use mio;
 use nbchan::mpsc as nb_mpsc;
+use std::collections::HashMap;
+use std::fmt;
+use std::io;
+use std::sync::Arc;
+use std::sync::atomic::{self, AtomicUsize};
+use std::sync::mpsc::{RecvError, TryRecvError};
+use std::time;
 
-use sync::oneshot;
-use collections::HeapMap;
 use super::{EventedLock, Interest, SharableEvented};
+use collections::HeapMap;
+use sync::oneshot;
 
 type RequestSender = nb_mpsc::Sender<Request>;
 type RequestReceiver = nb_mpsc::Receiver<Request>;
@@ -40,7 +40,7 @@ impl Registrant {
     pub fn new(evented: BoxEvented) -> Self {
         Registrant {
             is_first: true,
-            evented: evented,
+            evented,
             read_waitings: Vec::new(),
             write_waitings: Vec::new(),
         }
@@ -87,7 +87,7 @@ impl Poller {
         let poll = mio::Poll::new()?;
         let (tx, rx) = nb_mpsc::channel();
         Ok(Poller {
-            poll: poll,
+            poll,
             events: MioEvents(mio::Events::with_capacity(capacity)),
             request_tx: tx,
             request_rx: rx,
@@ -262,7 +262,7 @@ impl PollerHandle {
         {
             self.is_alive = false;
         }
-        Register { rx: rx }
+        Register { rx }
     }
 
     fn set_timeout(&self, delay_from_now: time::Duration) -> Timeout {
@@ -273,11 +273,11 @@ impl PollerHandle {
         let _ = self.request_tx.send(request);
         Timeout {
             cancel: Some(CancelTimeout {
-                timeout_id: timeout_id,
-                expiry_time: expiry_time,
+                timeout_id,
+                expiry_time,
                 request_tx: self.request_tx.clone(),
             }),
-            rx: rx,
+            rx,
         }
     }
 }
@@ -355,10 +355,10 @@ pub struct EventedHandle<T> {
 impl<T: mio::Evented> EventedHandle<T> {
     fn new(inner: SharableEvented<T>, request_tx: RequestSender, token: mio::Token) -> Self {
         EventedHandle {
-            token: token,
-            request_tx: request_tx,
+            token,
+            request_tx,
             shared_count: Arc::new(AtomicUsize::new(1)),
-            inner: inner,
+            inner,
         }
     }
 

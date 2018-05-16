@@ -61,10 +61,10 @@
 //! an object shared with the senders.
 //! If a corresponding sender finds there is a waiting receiver,
 //! it will resume (reschedule) the fiber, after sending a message.
-use std::fmt;
-use std::sync::mpsc::{SendError, TryRecvError, TrySendError};
 use futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream};
 use nbchan::mpsc as nb_mpsc;
+use std::fmt;
+use std::sync::mpsc::{SendError, TryRecvError, TrySendError};
 
 use super::Notifier;
 
@@ -121,12 +121,13 @@ pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
         },
         Receiver {
             inner: rx,
-            notifier: notifier,
+            notifier,
         },
     )
 }
 
 /// Creates a new synchronous, bounded channel.
+#[deprecated]
 pub fn sync_channel<T>(bound: usize) -> (SyncSender<T>, Receiver<T>) {
     let notifier = Notifier::new();
     let (tx, rx) = nb_mpsc::sync_channel(bound);
@@ -137,7 +138,7 @@ pub fn sync_channel<T>(bound: usize) -> (SyncSender<T>, Receiver<T>) {
         },
         Receiver {
             inner: rx,
-            notifier: notifier,
+            notifier,
         },
     )
 }

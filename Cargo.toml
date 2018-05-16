@@ -1,6 +1,6 @@
 [package]
 name = "fibers"
-version = "0.1.9"
+version = "0.1.10"
 authors = ["Takeru Ohta <takeru_ohta@dwango.co.jp>"]
 description = "A Rust library to execute a number of lightweight asynchronous tasks (a.k.a, fibers) based on futures and mio"
 homepage = "https://github.com/dwango/fibers-rs"
@@ -14,9 +14,9 @@ mio = "0.6"
 futures = "0.1"
 splay_tree = "0.2"
 num_cpus = "1"
-handy_async = "0.2"
 nbchan = "0.1"
 
 [dev-dependencies]
 clap = "2"
+handy_async = "0.2"
 httparse = "1"

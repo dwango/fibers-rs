@@ -5,15 +5,14 @@
 //!
 //! Those are mainly exported for developers.
 //! So, usual users do not need to be conscious.
+use futures::future::Either;
+use futures::{self, Async, Future, IntoFuture, Poll};
 use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicUsize};
-use futures::{self, Async, Future, IntoFuture};
-use futures::future::Either;
-use handy_async::future::FutureExt;
 
-pub use self::schedule::{Scheduler, SchedulerHandle, SchedulerId};
 pub use self::schedule::{with_current_context, yield_poll, Context};
+pub use self::schedule::{Scheduler, SchedulerHandle, SchedulerId};
 
 use sync::oneshot::{self, Link, Monitor};
 
@@ -58,7 +57,10 @@ pub trait Spawn {
         E: Send + 'static,
     {
         let (monitored, monitor) = oneshot::monitor();
-        self.spawn(f.then(move |r| Ok(monitored.exit(r))));
+        self.spawn(f.then(move |r| {
+            monitored.exit(r);
+            Ok(())
+        }));
         monitor
     }
 
@@ -95,7 +97,7 @@ pub trait Spawn {
         E: Send + 'static,
     {
         let (link0, link1) = oneshot::link();
-        let future = f.select_either(link1).then(|result| {
+        let future = SelectEither::new(f, link1).then(|result| {
             match result {
                 Err(Either::A((result, link1))) => {
                     link1.exit(Err(result));
@@ -154,8 +156,8 @@ struct FiberState {
 impl FiberState {
     pub fn new(fiber_id: FiberId, task: Task) -> Self {
         FiberState {
-            fiber_id: fiber_id,
-            task: task,
+            fiber_id,
+            task,
             parks: 0,
             unparks: Arc::new(AtomicUsize::new(0)),
             in_run_queue: false,
@@ -184,8 +186,8 @@ impl FiberState {
         Unpark {
             fiber_id: self.fiber_id,
             unparks: Arc::clone(&self.unparks),
-            scheduler_id: scheduler_id,
-            scheduler: scheduler,
+            scheduler_id,
+            scheduler,
         }
     }
     pub fn yield_once(&mut self) {
@@ -227,5 +229,31 @@ pub(crate) struct Task(pub FiberFuture);
 impl fmt::Debug for Task {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Task(_)")
+    }
+}
+
+struct SelectEither<A, B>(Option<(A, B)>);
+impl<A: Future, B: Future> SelectEither<A, B> {
+    fn new(a: A, b: B) -> Self {
+        SelectEither(Some((a, b)))
+    }
+}
+impl<A: Future, B: Future> Future for SelectEither<A, B> {
+    type Item = Either<(A::Item, B), (A, B::Item)>;
+    type Error = Either<(A::Error, B), (A, B::Error)>;
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        let (mut a, mut b) = self.0.take().expect("Cannot poll SelectEither twice");
+        match a.poll() {
+            Err(e) => return Err(Either::A((e, b))),
+            Ok(Async::Ready(v)) => return Ok(Async::Ready(Either::A((v, b)))),
+            Ok(Async::NotReady) => {}
+        }
+        match b.poll() {
+            Err(e) => return Err(Either::B((a, e))),
+            Ok(Async::Ready(v)) => return Ok(Async::Ready(Either::B((a, v)))),
+            Ok(Async::NotReady) => {}
+        }
+        self.0 = Some((a, b));
+        Ok(Async::NotReady)
     }
 }

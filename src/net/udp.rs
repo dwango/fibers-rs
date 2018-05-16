@@ -1,15 +1,15 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
+use futures::{Async, Future, Poll};
+use mio::net::UdpSocket as MioUdpSocket;
 use std::fmt;
 use std::io;
 use std::net::SocketAddr;
-use futures::{Async, Future, Poll};
-use mio::net::UdpSocket as MioUdpSocket;
 
+use super::{into_io_error, Bind};
 use io::poll::{EventedHandle, Interest};
 use sync::oneshot::Monitor;
-use super::{into_io_error, Bind};
 
 /// A User Datagram Protocol socket.
 ///
@@ -70,8 +70,8 @@ impl UdpSocket {
     pub fn send_to<B: AsRef<[u8]>>(self, buf: B, target: SocketAddr) -> SendTo<B> {
         SendTo(Some(SendToInner {
             socket: self,
-            buf: buf,
-            target: target,
+            buf,
+            target,
             monitor: None,
         }))
     }
@@ -80,7 +80,7 @@ impl UdpSocket {
     pub fn recv_from<B: AsMut<[u8]>>(self, buf: B) -> RecvFrom<B> {
         RecvFrom(Some(RecvFromInner {
             socket: self,
-            buf: buf,
+            buf,
             monitor: None,
         }))
     }
@@ -132,7 +132,7 @@ impl Future for UdpSocketBind {
     type Item = UdpSocket;
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        Ok(self.0.poll()?.map(|handle| UdpSocket { handle: handle }))
+        Ok(self.0.poll()?.map(|handle| UdpSocket { handle }))
     }
 }
 

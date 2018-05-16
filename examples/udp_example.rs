@@ -4,9 +4,9 @@
 extern crate fibers;
 extern crate futures;
 
-use fibers::{Executor, InPlaceExecutor, Spawn};
 use fibers::net::UdpSocket;
 use fibers::sync::oneshot;
+use fibers::{Executor, InPlaceExecutor, Spawn};
 use futures::Future;
 
 fn main() {

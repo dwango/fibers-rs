@@ -1,15 +1,15 @@
 // Copyright (c) 2016 DWANGO Co., Ltd. All Rights Reserved.
 // See the LICENSE file at the top-level directory of this distribution.
 
-use std::sync::atomic;
-use std::collections::{HashMap, VecDeque};
-use std::sync::mpsc as std_mpsc;
-use std::cell::RefCell;
 use futures::{Async, Future, Poll};
+use std::cell::RefCell;
+use std::collections::{HashMap, VecDeque};
+use std::sync::atomic;
+use std::sync::mpsc as std_mpsc;
 
+use super::{FiberState, Spawn};
 use fiber::{self, Task};
 use io::poll;
-use super::{FiberState, Spawn};
 
 static mut NEXT_SCHEDULER_ID: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
 
@@ -55,9 +55,9 @@ impl Scheduler {
             next_fiber_id: 0,
             fibers: HashMap::new(),
             run_queue: VecDeque::new(),
-            request_tx: request_tx,
-            request_rx: request_rx,
-            poller: poller,
+            request_tx,
+            request_rx,
+            poller,
         }
     }
 
@@ -327,10 +327,7 @@ impl InnerContext {
         if let Some(scheduler) = self.scheduler.as_mut() {
             if let Some(fiber) = self.fiber {
                 let fiber = unsafe { &mut *fiber };
-                return Some(Context {
-                    scheduler: scheduler,
-                    fiber: fiber,
-                });
+                return Some(Context { scheduler, fiber });
             }
         }
         None
