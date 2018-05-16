@@ -306,6 +306,16 @@ impl TcpStream {
         self.handle.inner().take_error()
     }
 
+    /// Gets the value of the `TCP_NODELAY` option on this socket.
+    pub fn nodelay(&self) -> io::Result<bool> {
+        self.handle.inner().nodelay()
+    }
+
+    /// Sets the value of the `TCP_NODELAY `option on this socket.
+    pub fn set_nodelay(&self, nodelay: bool) -> io::Result<()> {
+        self.handle.inner().set_nodelay(nodelay)
+    }
+
     /// Calls `f` with the reference to the inner socket.
     pub unsafe fn with_inner<F, T>(&self, f: F) -> T
     where
