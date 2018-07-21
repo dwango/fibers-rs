@@ -8,8 +8,8 @@
 use futures::future::Either;
 use futures::{self, Async, Future, IntoFuture, Poll};
 use std::fmt;
-use std::sync::Arc;
 use std::sync::atomic::{self, AtomicUsize};
+use std::sync::Arc;
 
 pub use self::schedule::{with_current_context, yield_poll, Context};
 pub use self::schedule::{Scheduler, SchedulerHandle, SchedulerId};

@@ -14,8 +14,8 @@ use std::io;
 use std::ops;
 use std::sync::Arc;
 
-pub use self::poller::{Register, DEFAULT_EVENTS_CAPACITY};
 pub use self::poller::{EventedHandle, Poller, PollerHandle};
+pub use self::poller::{Register, DEFAULT_EVENTS_CAPACITY};
 
 use sync_atomic::{AtomicBorrowMut, AtomicCell};
 
