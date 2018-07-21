@@ -429,8 +429,9 @@ impl Future for ConnectInner {
         match mem::replace(self, ConnectInner::Polled) {
             ConnectInner::Connect(addr) => {
                 let stream = MioTcpStream::connect(&addr)?;
-                let register =
-                    assert_some!(fiber::with_current_context(|mut c| c.poller().register(stream),));
+                let register = assert_some!(fiber::with_current_context(
+                    |mut c| c.poller().register(stream),
+                ));
                 *self = ConnectInner::Registering(register);
                 self.poll()
             }

@@ -60,8 +60,9 @@ where
         match mem::replace(self, Bind::Polled) {
             Bind::Bind(addr, bind) => {
                 let socket = bind(&addr)?;
-                let register =
-                    assert_some!(fiber::with_current_context(|mut c| c.poller().register(socket),));
+                let register = assert_some!(fiber::with_current_context(
+                    |mut c| c.poller().register(socket),
+                ));
                 *self = Bind::Registering(register);
                 self.poll()
             }

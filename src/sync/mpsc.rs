@@ -198,6 +198,11 @@ impl<T> Sender<T> {
         self.notifier.notify();
         Ok(())
     }
+
+    /// Returns `true` if the receiver has dropped, otherwise `false`.
+    pub fn is_disconnected(&self) -> bool {
+        self.inner.is_disconnected()
+    }
 }
 unsafe impl<T: Send> Sync for Sender<T> {}
 impl<T> Clone for Sender<T> {

@@ -7,9 +7,9 @@ use nbchan::mpsc as nb_mpsc;
 use std::collections::HashMap;
 use std::fmt;
 use std::io;
-use std::sync::Arc;
 use std::sync::atomic::{self, AtomicUsize};
 use std::sync::mpsc::{RecvError, TryRecvError};
+use std::sync::Arc;
 use std::time;
 
 use super::{EventedLock, Interest, SharableEvented};
