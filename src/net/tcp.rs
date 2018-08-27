@@ -8,6 +8,7 @@ use std::fmt;
 use std::io;
 use std::mem;
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use super::{into_io_error, Bind};
 use fiber::{self, Context};
@@ -62,7 +63,7 @@ use sync::oneshot::Monitor;
 /// # }
 /// ```
 pub struct TcpListener {
-    handle: EventedHandle<MioTcpListener>,
+    handle: Arc<EventedHandle<MioTcpListener>>,
     monitor: Option<Monitor<(), io::Error>>,
 }
 impl TcpListener {
@@ -260,7 +261,7 @@ impl Future for Connected {
 /// # }
 /// ```
 pub struct TcpStream {
-    handle: EventedHandle<MioTcpStream>,
+    handle: Arc<EventedHandle<MioTcpStream>>,
     read_monitor: Option<Monitor<(), io::Error>>,
     write_monitor: Option<Monitor<(), io::Error>>,
 }
@@ -274,7 +275,7 @@ impl Clone for TcpStream {
     }
 }
 impl TcpStream {
-    fn new(handle: EventedHandle<MioTcpStream>) -> Self {
+    fn new(handle: Arc<EventedHandle<MioTcpStream>>) -> Self {
         TcpStream {
             handle,
             read_monitor: None,

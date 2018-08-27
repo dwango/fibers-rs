@@ -24,6 +24,7 @@ use std::fmt;
 use std::io;
 use std::mem;
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 pub use self::tcp::{TcpListener, TcpStream};
 pub use self::udp::UdpSocket;
@@ -54,7 +55,7 @@ where
     F: FnOnce(&SocketAddr) -> io::Result<T>,
     T: mio::Evented + Send + 'static,
 {
-    type Item = EventedHandle<T>;
+    type Item = Arc<EventedHandle<T>>;
     type Error = io::Error;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         match mem::replace(self, Bind::Polled) {

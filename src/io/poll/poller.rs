@@ -331,10 +331,10 @@ impl Drop for Timeout {
 /// A future which will register a new evented object to a poller.
 #[derive(Debug)]
 pub struct Register<T> {
-    rx: oneshot::Receiver<EventedHandle<T>>,
+    rx: oneshot::Receiver<Arc<EventedHandle<T>>>,
 }
 impl<T> Future for Register<T> {
-    type Item = EventedHandle<T>;
+    type Item = Arc<EventedHandle<T>>;
     type Error = RecvError;
     fn poll(&mut self) -> futures::Poll<Self::Item, Self::Error> {
         self.rx.poll()
@@ -343,23 +343,21 @@ impl<T> Future for Register<T> {
 
 /// The handle of an evented object which has been registered in a poller.
 ///
-/// When all copy of this handle are dropped,
+/// When all references of this handle are dropped,
 /// the corresponding entry in the poller is deregistered.
 #[derive(Debug)]
 pub struct EventedHandle<T> {
     token: mio::Token,
     request_tx: RequestSender,
-    shared_count: Arc<AtomicUsize>,
     inner: SharableEvented<T>,
 }
 impl<T: mio::Evented> EventedHandle<T> {
-    fn new(inner: SharableEvented<T>, request_tx: RequestSender, token: mio::Token) -> Self {
-        EventedHandle {
+    fn new(inner: SharableEvented<T>, request_tx: RequestSender, token: mio::Token) -> Arc<Self> {
+        Arc::new(EventedHandle {
             token,
             request_tx,
-            shared_count: Arc::new(AtomicUsize::new(1)),
             inner,
-        }
+        })
     }
 
     /// Monitors occurrence of an event specified by `interest`.
@@ -375,22 +373,9 @@ impl<T: mio::Evented> EventedHandle<T> {
         self.inner.lock()
     }
 }
-impl<T> Clone for EventedHandle<T> {
-    fn clone(&self) -> Self {
-        self.shared_count.fetch_add(1, atomic::Ordering::SeqCst);
-        EventedHandle {
-            token: self.token,
-            request_tx: self.request_tx.clone(),
-            shared_count: Arc::clone(&self.shared_count),
-            inner: self.inner.clone(),
-        }
-    }
-}
 impl<T> Drop for EventedHandle<T> {
     fn drop(&mut self) {
-        if 1 == self.shared_count.fetch_sub(1, atomic::Ordering::SeqCst) {
-            let _ = self.request_tx.send(Request::Deregister(self.token));
-        }
+        let _ = self.request_tx.send(Request::Deregister(self.token));
     }
 }
 

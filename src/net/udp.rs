@@ -6,6 +6,7 @@ use mio::net::UdpSocket as MioUdpSocket;
 use std::fmt;
 use std::io;
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use super::{into_io_error, Bind};
 use io::poll::{EventedHandle, Interest};
@@ -58,7 +59,7 @@ use sync::oneshot::Monitor;
 /// ```
 #[derive(Clone)]
 pub struct UdpSocket {
-    handle: EventedHandle<MioUdpSocket>,
+    handle: Arc<EventedHandle<MioUdpSocket>>,
 }
 impl UdpSocket {
     /// Makes a future to create a UDP socket binded to the given address.
