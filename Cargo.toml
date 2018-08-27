@@ -9,6 +9,9 @@ readme = "README.md"
 keywords = ["async", "thread", "fiber", "futures"]
 license = "MIT"
 
+[badges]
+travis-ci = {repository = "dwango/fibers-rs"}
+
 [dependencies]
 mio = "0.6"
 futures = "0.1"

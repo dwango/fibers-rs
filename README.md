@@ -3,6 +3,7 @@ fibers
 
 [![fibers](http://meritbadge.herokuapp.com/fibers)](https://crates.io/crates/fibers)
 [![Documentation](https://docs.rs/fibers/badge.svg)](https://docs.rs/fibers)
+[![Build Status](https://travis-ci.org/dwango/fibers-rs.svg?branch=master)](https://travis-ci.org/dwango/fibers-rs)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 This is a library to execute a number of lightweight asynchronous tasks (a.k.a, fibers).
