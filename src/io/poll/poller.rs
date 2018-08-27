@@ -256,7 +256,8 @@ impl PollerHandle {
             let reply = reply.take().unwrap();
             reply(token)
         }));
-        if self.request_tx
+        if self
+            .request_tx
             .send(Request::Register(box_evented, reply))
             .is_err()
         {
@@ -294,7 +295,8 @@ struct CancelTimeout {
 }
 impl CancelTimeout {
     pub fn cancel(self) {
-        let _ = self.request_tx
+        let _ = self
+            .request_tx
             .send(Request::CancelTimeout(self.timeout_id, self.expiry_time));
     }
 }
@@ -363,7 +365,8 @@ impl<T: mio::Evented> EventedHandle<T> {
     /// Monitors occurrence of an event specified by `interest`.
     pub fn monitor(&self, interest: Interest) -> oneshot::Monitor<(), io::Error> {
         let (monitored, monitor) = oneshot::monitor();
-        let _ = self.request_tx
+        let _ = self
+            .request_tx
             .send(Request::Monitor(self.token, interest, monitored));
         monitor
     }
