@@ -214,11 +214,11 @@ impl Poller {
         }
         Ok(())
     }
-    #[cfg(not(any(target_os = "macos", target_os = "freebsd", target_od = "netbsd")))]
+    #[cfg(not(any(target_os = "macos", target_os = "freebsd", target_os = "netbsd")))]
     fn mio_deregister<E: ?Sized + mio::Evented>(&mut self, handle: &E) -> io::Result<()> {
         self.poll.deregister(handle)
     }
-    #[cfg(any(target_os = "macos", target_os = "freebsd", target_od = "netbsd"))]
+    #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "netbsd"))]
     fn mio_deregister<E: ?Sized + mio::Evented>(&mut self, handle: &E) -> io::Result<()> {
         let result = self.poll.deregister(handle);
         if let Err(e) = result.as_ref() {
