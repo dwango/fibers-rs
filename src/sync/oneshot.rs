@@ -39,7 +39,7 @@ use super::Notifier;
 /// let (tx0, rx0) = oneshot::channel();
 /// let (tx1, rx1) = oneshot::channel();
 ///
-/// // Spanws receiver
+/// // Spawns receiver
 /// let mut monitor = executor.spawn_monitor(rx0.and_then(move |v| {
 ///     assert_eq!(v, "first value");
 ///     rx1
@@ -163,7 +163,7 @@ impl<T> fmt::Debug for Receiver<T> {
 /// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (monitored, mut monitor) = oneshot::monitor();
 ///
-/// // Spanws monitored fiber
+/// // Spawns monitored fiber
 /// // (In practice, spawning fiber via `spawn_monitor` function is
 /// //  more convenient way to archieve the same result)
 /// executor.spawn_fn(move || {
@@ -198,7 +198,7 @@ impl<T> fmt::Debug for Receiver<T> {
 /// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (monitored, mut monitor) = oneshot::monitor::<(),()>();
 ///
-/// // Spanws monitored fiber
+/// // Spawns monitored fiber
 /// // (In practice, spawning fiber via `spawn_monitor` function is
 /// //  more convenient way to archieve the same result)
 /// executor.spawn_fn(move || {
