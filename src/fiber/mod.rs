@@ -49,7 +49,7 @@ pub trait Spawn {
         self.spawn(futures::lazy(f))
     }
 
-    /// Spawns a fiber and returns a future to monitor it's execution result.
+    /// Spawns a fiber and returns a future to monitor its execution result.
     fn spawn_monitor<F, T, E>(&self, f: F) -> Monitor<T, E>
     where
         F: Future<Item = T, Error = E> + Send + 'static,
@@ -82,7 +82,7 @@ pub trait Spawn {
     /// let (tx, rx) = oneshot::channel();
     /// let fiber = empty().and_then(move |()| tx.send(()));
     ///
-    /// // Spanws `fiber` and drops `link`.
+    /// // Spawns `fiber` and drops `link`.
     /// let link = executor.spawn_link(fiber);
     /// std::mem::drop(link);
     ///

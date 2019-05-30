@@ -31,7 +31,7 @@
 //! // Creates an executor.
 //! let mut executor = ThreadPoolExecutor::new().unwrap();
 //!
-//! // Spanws fibers (i.e., passes futures to the executor).
+//! // Spawns fibers (i.e., passes futures to the executor).
 //! executor.spawn(futures::lazy(|| { println!("Hello"); Ok(())} ));
 //! executor.spawn(futures::lazy(|| { println!("World!"); Ok(())} ));
 //!

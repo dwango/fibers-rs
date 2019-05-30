@@ -22,7 +22,7 @@
 //! let mut executor = InPlaceExecutor::new().unwrap();
 //! let (tx0, rx) = mpsc::channel();
 //!
-//! // Spanws receiver
+//! // Spawns receiver
 //! let mut monitor = executor.spawn_monitor(rx.for_each(|m| {
 //!     println!("# Recv: {:?}", m);
 //!     Ok(())
@@ -86,7 +86,7 @@ use super::Notifier;
 /// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (tx0, rx) = mpsc::channel();
 ///
-/// // Spanws receiver
+/// // Spawns receiver
 /// let mut monitor = executor.spawn_monitor(rx.for_each(|m| {
 ///     println!("# Recv: {:?}", m);
 ///     Ok(())
