@@ -127,7 +127,6 @@ pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
 }
 
 /// Creates a new synchronous, bounded channel.
-#[deprecated]
 pub fn sync_channel<T>(bound: usize) -> (SyncSender<T>, Receiver<T>) {
     let notifier = Notifier::new();
     let (tx, rx) = nb_mpsc::sync_channel(bound);
