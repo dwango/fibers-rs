@@ -1,9 +1,24 @@
 language: rust
+
 rust:
   - stable
   - beta
   - nightly
+
 matrix:
   allow_failures:
     - rust: nightly
   fast_finish: true
+
+before_script:
+  - rustup component add clippy rustfmt
+  - cargo clippy --version
+
+script:
+  - cargo test --all
+  - cargo clippy --all --all-targets
+  - cargo fmt -- --check
+
+env:
+  global:
+  - RUSTFLAGS="-D warnings"

@@ -55,23 +55,20 @@ fn main() {
                                         let content_offset = status.unwrap();
                                         Ok(Some((content_offset, content_len)))
                                     }
-                                }).and_then(
-                                    |(mut buf, (content_offset, content_len))| {
-                                        // Read content
-                                        let read_size = buf.len();
-                                        let request_len = content_offset + content_len;
-                                        buf.resize(request_len, 0);
-                                        let buf = Window::new(buf).skip(read_size);
-                                        let pattern = if read_size == request_len {
-                                            Branch::A(Ok(buf)) as Branch<_, _>
-                                        } else {
-                                            Branch::B(buf)
-                                        };
-                                        pattern.map(move |buf: Window<_>| {
-                                            buf.set_start(content_offset)
-                                        })
-                                    },
-                                );
+                                })
+                                .and_then(|(mut buf, (content_offset, content_len))| {
+                                    // Read content
+                                    let read_size = buf.len();
+                                    let request_len = content_offset + content_len;
+                                    buf.resize(request_len, 0);
+                                    let buf = Window::new(buf).skip(read_size);
+                                    let pattern = if read_size == request_len {
+                                        Branch::A(Ok(buf)) as Branch<_, _>
+                                    } else {
+                                        Branch::B(buf)
+                                    };
+                                    pattern.map(move |buf: Window<_>| buf.set_start(content_offset))
+                                });
                                 read_request_pattern.read_from(client).then(|result| {
                                     // Write response
                                     let (client, result) = match result {
@@ -85,16 +82,19 @@ fn main() {
                                         format!(
                                             "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n",
                                             content.as_ref().len()
-                                        ).chain(content)
-                                            .map(|_| ())
-                                    }).or_else(
+                                        )
+                                        .chain(content)
+                                        .map(|_| ())
+                                    })
+                                    .or_else(
                                         |error: io::Error| {
                                             let message = error.to_string();
                                             format!(
                                                 "HTTP/1.1 500 OK\r\nContent-Length: {}\r\n\r\n",
                                                 message.len()
-                                            ).chain(message)
-                                                .map(|_| ())
+                                            )
+                                            .chain(message)
+                                            .map(|_| ())
                                         },
                                     );
                                     pattern.write_into(client).map_err(|e| e.into_error())
