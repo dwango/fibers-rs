@@ -190,10 +190,9 @@ impl Poller {
                 }
             }
             Request::SetTimeout(timeout_id, expiry_time, reply) => {
-                assert!(
-                    self.timeout_queue
-                        .push_if_absent((expiry_time, timeout_id), reply,)
-                );
+                assert!(self
+                    .timeout_queue
+                    .push_if_absent((expiry_time, timeout_id), reply,));
             }
             Request::CancelTimeout(timeout_id, expiry_time) => {
                 self.timeout_queue.remove(&(expiry_time, timeout_id));

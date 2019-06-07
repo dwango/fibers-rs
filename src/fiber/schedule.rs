@@ -11,7 +11,7 @@ use super::{FiberState, Spawn};
 use fiber::{self, Task};
 use io::poll;
 
-static mut NEXT_SCHEDULER_ID: atomic::AtomicUsize = atomic::ATOMIC_USIZE_INIT;
+static mut NEXT_SCHEDULER_ID: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
 
 thread_local! {
     static CURRENT_CONTEXT: RefCell<InnerContext> = {
