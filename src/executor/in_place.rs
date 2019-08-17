@@ -21,7 +21,7 @@ use io::poll;
 /// use fibers::{Spawn, Executor, InPlaceExecutor};
 /// use futures::{Async, Future};
 ///
-/// fn fib<H: Spawn + Clone>(n: usize, handle: H) -> Box<Future<Item=usize, Error=()> + Send> {
+/// fn fib<H: Spawn + Clone>(n: usize, handle: H) -> Box<dyn Future<Item=usize, Error=()> + Send> {
 ///     if n < 2 {
 ///         Box::new(futures::finished(n))
 ///     } else {
@@ -73,7 +73,7 @@ impl Executor for InPlaceExecutor {
     }
 }
 impl Spawn for InPlaceExecutor {
-    fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>) {
+    fn spawn_boxed(&self, fiber: Box<dyn Future<Item = (), Error = ()> + Send>) {
         self.handle().spawn_boxed(fiber)
     }
 }
@@ -84,7 +84,7 @@ pub struct InPlaceExecutorHandle {
     scheduler: fiber::SchedulerHandle,
 }
 impl Spawn for InPlaceExecutorHandle {
-    fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>) {
+    fn spawn_boxed(&self, fiber: Box<dyn Future<Item = (), Error = ()> + Send>) {
         self.scheduler.spawn_boxed(fiber)
     }
 }

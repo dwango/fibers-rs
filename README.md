@@ -123,7 +123,7 @@ fn main() {
     assert_eq!(answer, Ok(55));
 }
 
-fn fibonacci<H: Spawn + Clone>(n: usize, handle: H) -> Box<Future<Item=usize, Error=()> + Send> {
+fn fibonacci<H: Spawn + Clone>(n: usize, handle: H) -> Box<dyn Future<Item=usize, Error=()> + Send> {
     if n < 2 {
         Box::new(futures::finished(n))
     } else {

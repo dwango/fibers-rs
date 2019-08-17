@@ -26,7 +26,7 @@ fn main() {
     println!("fibonacci({}) = {}", input_number, answer);
 }
 
-fn fibonacci<H: Spawn>(n: usize, handle: &H) -> Box<Future<Item = usize, Error = ()> + Send> {
+fn fibonacci<H: Spawn>(n: usize, handle: &H) -> Box<dyn Future<Item = usize, Error = ()> + Send> {
     if n < 2 {
         Box::new(futures::finished(n))
     } else {

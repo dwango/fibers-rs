@@ -207,7 +207,7 @@ impl SchedulerHandle {
     }
 }
 impl Spawn for SchedulerHandle {
-    fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>) {
+    fn spawn_boxed(&self, fiber: Box<dyn Future<Item = (), Error = ()> + Send>) {
         let _ = self.request_tx.send(Request::Spawn(Task(fiber)));
     }
 }

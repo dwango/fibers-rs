@@ -336,7 +336,7 @@ impl<E: error::Error> error::Error for MonitorError<E> {
             MonitorError::Failed(_) => "Monitor target failed: {}",
         }
     }
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             MonitorError::Aborted => None,
             MonitorError::Failed(ref e) => Some(e),

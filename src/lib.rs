@@ -80,7 +80,7 @@
 //! use fibers::{Spawn, Executor, ThreadPoolExecutor};
 //! use futures::Future;
 //!
-//! fn fibonacci<H: Spawn + Clone>(n: usize, handle: H) -> Box<Future<Item=usize, Error=()> + Send> {
+//! fn fibonacci<H: Spawn + Clone>(n: usize, handle: H) -> Box<dyn Future<Item=usize, Error=()> + Send> {
 //!     if n < 2 {
 //!         Box::new(futures::finished(n))
 //!     } else {

@@ -27,7 +27,7 @@ use sync::oneshot::{self, Link};
 /// use fibers::{Spawn, Executor, ThreadPoolExecutor};
 /// use futures::{Async, Future};
 ///
-/// fn fib<H: Spawn + Clone>(n: usize, handle: H) -> Box<Future<Item=usize, Error=()> + Send> {
+/// fn fib<H: Spawn + Clone>(n: usize, handle: H) -> Box<dyn Future<Item=usize, Error=()> + Send> {
 ///     if n < 2 {
 ///         Box::new(futures::finished(n))
 ///     } else {
@@ -124,7 +124,7 @@ impl Executor for ThreadPoolExecutor {
     }
 }
 impl Spawn for ThreadPoolExecutor {
-    fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>) {
+    fn spawn_boxed(&self, fiber: Box<dyn Future<Item = (), Error = ()> + Send>) {
         self.handle().spawn_boxed(fiber)
     }
 }
@@ -135,7 +135,7 @@ pub struct ThreadPoolExecutorHandle {
     spawn_tx: nb_mpsc::Sender<Task>,
 }
 impl Spawn for ThreadPoolExecutorHandle {
-    fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>) {
+    fn spawn_boxed(&self, fiber: Box<dyn Future<Item = (), Error = ()> + Send>) {
         let _ = self.spawn_tx.send(Task(fiber));
     }
 }
