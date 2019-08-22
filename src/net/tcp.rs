@@ -449,7 +449,7 @@ impl Future for ConnectInner {
                 Ok(_) => Ok(Async::Ready(stream)),
                 Err(e) => {
                     if let Some(e) = stream.take_error()? {
-                        Err(e)?;
+                        return Err(e);
                     }
                     if e.kind() == io::ErrorKind::NotConnected {
                         let retry = stream.start_monitor_if_needed(Interest::Write)?;

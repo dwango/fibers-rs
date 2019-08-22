@@ -29,7 +29,7 @@ pub type ContextId = (SchedulerId, FiberId);
 /// The `Spawn` trait allows for spawning fibers.
 pub trait Spawn {
     /// Spawns a fiber which will execute given boxed future.
-    fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>);
+    fn spawn_boxed(&self, fiber: Box<dyn Future<Item = (), Error = ()> + Send>);
 
     /// Spawns a fiber which will execute given future.
     fn spawn<F>(&self, fiber: F)
@@ -124,12 +124,12 @@ pub trait Spawn {
     }
 }
 
-type BoxFn = Box<Fn(Box<Future<Item = (), Error = ()> + Send>) + Send + 'static>;
+type BoxFn = Box<dyn Fn(Box<dyn Future<Item = (), Error = ()> + Send>) + Send + 'static>;
 
 /// Boxed `Spawn` object.
 pub struct BoxSpawn(BoxFn);
 impl Spawn for BoxSpawn {
-    fn spawn_boxed(&self, fiber: Box<Future<Item = (), Error = ()> + Send>) {
+    fn spawn_boxed(&self, fiber: Box<dyn Future<Item = (), Error = ()> + Send>) {
         (self.0)(fiber);
     }
     fn boxed(self) -> BoxSpawn
@@ -223,7 +223,7 @@ impl Drop for Unpark {
     }
 }
 
-pub(crate) type FiberFuture = Box<Future<Item = (), Error = ()> + Send>;
+pub(crate) type FiberFuture = Box<dyn Future<Item = (), Error = ()> + Send>;
 
 pub(crate) struct Task(pub FiberFuture);
 impl fmt::Debug for Task {

@@ -381,14 +381,14 @@ impl<T> Drop for EventedHandle<T> {
     }
 }
 
-struct BoxEvented(Box<mio::Evented + Send + 'static>);
+struct BoxEvented(Box<dyn mio::Evented + Send + 'static>);
 impl fmt::Debug for BoxEvented {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "BoxEvented(_)")
     }
 }
 
-struct RegisterReplyFn(Box<FnMut(mio::Token) + Send + 'static>);
+struct RegisterReplyFn(Box<dyn FnMut(mio::Token) + Send + 'static>);
 impl fmt::Debug for RegisterReplyFn {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "RegisterReplyFn(_)")
