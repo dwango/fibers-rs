@@ -92,7 +92,7 @@ impl TcpListener {
     }
 
     /// Calls `f` with the reference to the inner socket.
-    pub unsafe fn with_inner<F, T>(&self, f: F) -> T
+    pub fn with_inner<F, T>(&self, f: F) -> T
     where
         F: FnOnce(&MioTcpListener) -> T,
     {
@@ -318,7 +318,7 @@ impl TcpStream {
     }
 
     /// Calls `f` with the reference to the inner socket.
-    pub unsafe fn with_inner<F, T>(&self, f: F) -> T
+    pub fn with_inner<F, T>(&self, f: F) -> T
     where
         F: FnOnce(&MioTcpStream) -> T,
     {
