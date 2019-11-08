@@ -193,12 +193,15 @@ extern crate splay_tree;
 
 macro_rules! assert_some {
     ($e:expr) => {
-        $e.expect(&format!(
-            "[{}:{}] {:?} must be a Some(..)",
-            file!(),
-            line!(),
-            stringify!($e)
-        ))
+        match $e {
+            Some(value) => value,
+            None => panic!(
+                "[{}:{}] {:?} must be a Some(..)",
+                file!(),
+                line!(),
+                stringify!($e)
+            ),
+        }
     };
 }
 
