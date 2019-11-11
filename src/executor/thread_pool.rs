@@ -37,12 +37,10 @@ use sync::oneshot::{self, Link};
 ///     }
 /// }
 ///
-/// # fn main() {
 /// let mut executor = ThreadPoolExecutor::new().unwrap();
 /// let monitor = executor.spawn_monitor(fib(7, executor.handle()));
 /// let answer = executor.run_fiber(monitor).unwrap();
 /// assert_eq!(answer, Ok(13));
-/// # }
 /// ```
 #[derive(Debug)]
 pub struct ThreadPoolExecutor {

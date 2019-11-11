@@ -77,7 +77,6 @@ pub trait Spawn {
     /// use fibers::{Executor, InPlaceExecutor, Spawn};
     /// use futures::{Future, empty};
     ///
-    /// # fn main() {
     /// let mut executor = InPlaceExecutor::new().unwrap();
     /// let (tx, rx) = oneshot::channel();
     /// let fiber = empty().and_then(move |()| tx.send(()));
@@ -88,7 +87,6 @@ pub trait Spawn {
     ///
     /// // Channel `rx` is disconnected (e.g., `fiber` exited).
     /// assert!(executor.run_future(rx).unwrap().is_err());
-    /// # }
     /// ```
     fn spawn_link<F, T, E>(&self, f: F) -> Link<(), (), T, E>
     where

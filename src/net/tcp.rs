@@ -28,7 +28,6 @@ use sync::oneshot::Monitor;
 /// use fibers::sync::oneshot;
 /// use futures::{Future, Stream};
 ///
-/// # fn main() {
 /// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (addr_tx, addr_rx) = oneshot::channel();
 ///
@@ -60,7 +59,6 @@ use sync::oneshot::Monitor;
 ///     executor.run_once().unwrap();
 /// }
 /// println!("# Succeeded");
-/// # }
 /// ```
 pub struct TcpListener {
     handle: Arc<EventedHandle<MioTcpListener>>,
@@ -224,7 +222,6 @@ impl Future for Connected {
 /// use fibers::sync::oneshot;
 /// use futures::{Future, Stream};
 ///
-/// # fn main() {
 /// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (addr_tx, addr_rx) = oneshot::channel();
 ///
@@ -258,7 +255,6 @@ impl Future for Connected {
 ///     executor.run_once().unwrap();
 /// }
 /// println!("# Succeeded");
-/// # }
 /// ```
 pub struct TcpStream {
     handle: Arc<EventedHandle<MioTcpStream>>,
