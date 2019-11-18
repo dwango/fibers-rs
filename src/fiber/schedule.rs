@@ -291,12 +291,10 @@ impl<'a> Context<'a> {
 ///     }
 /// }
 ///
-/// # fn main() {
 /// let mut executor = InPlaceExecutor::new().unwrap();
 /// let monitor = executor.spawn_monitor(HeavyCalculation::new(100));
 /// let result = executor.run_fiber(monitor).unwrap();
 /// assert_eq!(result, Ok(11));
-/// # }
 /// ```
 pub fn yield_poll<T, E>() -> Poll<T, E> {
     with_current_context(|context| context.fiber.yield_once());

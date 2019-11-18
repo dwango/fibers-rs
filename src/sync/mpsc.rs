@@ -18,7 +18,6 @@
 //! use fibers::sync::mpsc;
 //! use futures::{Future, Stream};
 //!
-//! # fn main() {
 //! let mut executor = InPlaceExecutor::new().unwrap();
 //! let (tx0, rx) = mpsc::channel();
 //!
@@ -45,7 +44,6 @@
 //! while monitor.poll().unwrap().is_not_ready() {
 //!     executor.run_once().unwrap();
 //! }
-//! # }
 //! ```
 //!
 //! # Note
@@ -82,7 +80,6 @@ use super::Notifier;
 /// use fibers::sync::mpsc;
 /// use futures::{Future, Stream};
 ///
-/// # fn main() {
 /// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (tx0, rx) = mpsc::channel();
 ///
@@ -109,7 +106,6 @@ use super::Notifier;
 /// while monitor.poll().unwrap().is_not_ready() {
 ///     executor.run_once().unwrap();
 /// }
-/// # }
 /// ```
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let notifier = Notifier::new();

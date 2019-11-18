@@ -25,7 +25,6 @@ use sync::oneshot::Monitor;
 /// use fibers::sync::oneshot;
 /// use futures::Future;
 ///
-/// # fn main() {
 /// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (addr_tx, addr_rx) = oneshot::channel();
 ///
@@ -55,7 +54,6 @@ use sync::oneshot::Monitor;
 /// while monitor.poll().unwrap().is_not_ready() {
 ///     executor.run_once().unwrap();
 /// }
-/// # }
 /// ```
 #[derive(Clone)]
 pub struct UdpSocket {

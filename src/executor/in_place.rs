@@ -31,7 +31,6 @@ use io::poll;
 ///     }
 /// }
 ///
-/// # fn main() {
 /// let mut executor = InPlaceExecutor::new().unwrap();
 /// let mut monitor = executor.spawn_monitor(fib(7, executor.handle()));
 /// loop {
@@ -42,7 +41,6 @@ use io::poll;
 ///         executor.run_once().unwrap();
 ///     }
 /// }
-/// # }
 /// ```
 #[derive(Debug)]
 pub struct InPlaceExecutor {

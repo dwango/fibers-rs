@@ -91,7 +91,6 @@
 //!     }
 //! }
 //!
-//! # fn main() {
 //! // Creates an executor instance.
 //! let mut executor = ThreadPoolExecutor::new().unwrap();
 //!
@@ -105,7 +104,6 @@
 //!
 //! // Checkes the answer.
 //! assert_eq!(answer, Ok(55));
-//! # }
 //! ```
 //!
 //! ### TCP Echo Server
@@ -123,7 +121,6 @@
 //! use handy_async::io::{AsyncWrite, ReadFrom};
 //! use handy_async::pattern::AllowPartial;
 //!
-//! # fn main() {
 //! let server_addr = "127.0.0.1:3000".parse().expect("Invalid TCP bind address");
 //!
 //! let mut executor = ThreadPoolExecutor::new().expect("Cannot create Executor");
@@ -181,7 +178,6 @@
 //!     }));
 //! let result = executor.run_fiber(monitor).expect("Execution failed");
 //! println!("# Listener finished: {:?}", result);
-//! # }
 //! ```
 #![warn(missing_docs)]
 
