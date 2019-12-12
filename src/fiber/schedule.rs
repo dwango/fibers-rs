@@ -11,7 +11,7 @@ use super::{FiberState, Spawn};
 use fiber::{self, Task};
 use io::poll;
 
-static mut NEXT_SCHEDULER_ID: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
+static NEXT_SCHEDULER_ID: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
 
 thread_local! {
     static CURRENT_CONTEXT: RefCell<InnerContext> = {
@@ -51,7 +51,7 @@ impl Scheduler {
     pub fn new(poller: poll::PollerHandle) -> Self {
         let (request_tx, request_rx) = std_mpsc::channel();
         Scheduler {
-            scheduler_id: unsafe { NEXT_SCHEDULER_ID.fetch_add(1, atomic::Ordering::SeqCst) },
+            scheduler_id: NEXT_SCHEDULER_ID.fetch_add(1, atomic::Ordering::SeqCst),
             next_fiber_id: 0,
             fibers: HashMap::new(),
             run_queue: VecDeque::new(),
