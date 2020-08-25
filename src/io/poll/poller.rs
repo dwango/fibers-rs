@@ -267,7 +267,12 @@ impl PollerHandle {
 
     fn set_timeout(&self, delay_from_now: time::Duration) -> Timeout {
         let (tx, rx) = oneshot::channel();
-        let expiry_time = time::Instant::now() + delay_from_now;
+        let now = time::Instant::now();
+        let expiry_time = if let Some(ex) = now.checked_add(delay_from_now) {
+            ex
+        } else {
+            panic!("Overflow in expiry_time: now = {:?}, delay_from_now = {:?}", now, delay_from_now);
+        };
         let timeout_id = self.next_timeout_id.fetch_add(1, atomic::Ordering::SeqCst);
         let request = Request::SetTimeout(timeout_id, expiry_time, tx);
         let _ = self.request_tx.send(request);
