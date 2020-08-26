@@ -80,6 +80,12 @@ pub mod timer {
 
                 let set_timeout = |mut c: Context| {
                     let rest = duration - elapsed;
+                    if rest >= std::time::Duration::from_secs(1 << 30) {
+                        println!(
+                            "rest = {:?}, duration = {:?}, elapsed = {:?}",
+                            rest, duration, elapsed
+                        );
+                    }
                     poll::poller::set_timeout(c.poller(), rest)
                 };
                 if let Some(inner) = fiber::with_current_context(set_timeout) {
