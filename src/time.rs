@@ -59,6 +59,12 @@ pub mod timer {
 
     /// Makes a future which will expire after `delay_from_now`.
     pub fn timeout(delay_from_now: time::Duration) -> Timeout {
+        if delay_from_now >= time::Duration::from_secs(1 << 30) {
+            println!("delay_from_now = {:?}", delay_from_now);
+        }
+        if delay_from_now >= time::Duration::from_secs(1 << 50) {
+            panic!("delay_from_now too long: {:?}", delay_from_now);
+        }
         Timeout {
             start: time::Instant::now(),
             duration: delay_from_now,
