@@ -17,8 +17,7 @@
 //! indicates the socket becomes available.
 //! After that, when the event happens, the fiber will be resumed and
 //! rescheduled for next execution.
-use futures::{Async, Future, Poll};
-use mio;
+use ::futures::{Async, Future, Poll};
 use std::error;
 use std::fmt;
 use std::io;
@@ -29,8 +28,8 @@ use std::sync::Arc;
 pub use self::tcp::{TcpListener, TcpStream};
 pub use self::udp::UdpSocket;
 
-use fiber;
-use io::poll::{EventedHandle, Register};
+use crate::fiber;
+use crate::io::poll::{EventedHandle, Register};
 
 pub mod futures {
     //! Implementations of `futures::Future` trait.

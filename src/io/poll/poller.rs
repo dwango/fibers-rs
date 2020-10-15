@@ -2,7 +2,6 @@
 // See the LICENSE file at the top-level directory of this distribution.
 
 use futures::{self, Future};
-use mio;
 use nbchan::mpsc as nb_mpsc;
 use std::collections::HashMap;
 use std::fmt;
@@ -13,8 +12,8 @@ use std::sync::Arc;
 use std::time;
 
 use super::{EventedLock, Interest, SharableEvented};
-use collections::HeapMap;
-use sync::oneshot;
+use crate::collections::HeapMap;
+use crate::sync::oneshot;
 
 type RequestSender = nb_mpsc::Sender<Request>;
 type RequestReceiver = nb_mpsc::Receiver<Request>;

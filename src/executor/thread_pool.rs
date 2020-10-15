@@ -3,17 +3,16 @@
 
 use futures::{Async, Future};
 use nbchan::mpsc as nb_mpsc;
-use num_cpus;
 use std::io;
 use std::sync::mpsc::TryRecvError;
 use std::thread;
 use std::time;
 
 use super::Executor;
-use fiber::Task;
-use fiber::{self, Spawn};
-use io::poll;
-use sync::oneshot::{self, Link};
+use crate::fiber::Task;
+use crate::fiber::{self, Spawn};
+use crate::io::poll;
+use crate::sync::oneshot::{self, Link};
 
 /// An executor that executes spawned fibers on pooled threads.
 ///

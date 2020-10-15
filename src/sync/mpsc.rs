@@ -157,7 +157,7 @@ impl<T> Stream for Receiver<T> {
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         let mut result = self.inner.try_recv();
         if let Err(TryRecvError::Empty) = result {
-            self.notifier.await();
+            self.notifier.r#await();
             result = self.inner.try_recv();
         }
         match result {

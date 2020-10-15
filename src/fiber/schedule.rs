@@ -8,8 +8,8 @@ use std::sync::atomic;
 use std::sync::mpsc as std_mpsc;
 
 use super::{FiberState, Spawn};
-use fiber::{self, Task};
-use io::poll;
+use crate::fiber::{self, Task};
+use crate::io::poll;
 
 static NEXT_SCHEDULER_ID: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
 

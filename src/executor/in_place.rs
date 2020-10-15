@@ -6,8 +6,8 @@ use std::io;
 use std::time;
 
 use super::Executor;
-use fiber::{self, Spawn};
-use io::poll;
+use crate::fiber::{self, Spawn};
+use crate::io::poll;
 
 /// An executor that executes spawned fibers and I/O event polling on current thread.
 ///

@@ -2,7 +2,6 @@
 // See the LICENSE file at the top-level directory of this distribution.
 
 use futures::{Async, Future, Poll, Stream};
-use mio;
 use mio::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 use std::fmt;
 use std::io;
@@ -11,9 +10,9 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use super::{into_io_error, Bind};
-use fiber::{self, Context};
-use io::poll::{EventedHandle, Interest, Register};
-use sync::oneshot::Monitor;
+use crate::fiber::{self, Context};
+use crate::io::poll::{EventedHandle, Interest, Register};
+use crate::sync::oneshot::Monitor;
 
 /// A structure representing a socket server.
 ///
