@@ -20,7 +20,7 @@ impl Notifier {
             unpark: Arc::new(AtomicCell::new(None)),
         }
     }
-    pub fn r#await(&mut self) {
+    pub fn await_notification(&mut self) {
         loop {
             if let Some(mut unpark) = self.unpark.try_borrow_mut() {
                 let context_id = fiber::with_current_context(|c| c.context_id());

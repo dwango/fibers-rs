@@ -119,7 +119,7 @@ impl<T> Future for Receiver<T> {
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let mut result = self.inner.try_recv();
         if let Err(nbchan::oneshot::TryRecvError::Empty) = result {
-            self.notifier.r#await();
+            self.notifier.await_notification();
             result = self.inner.try_recv();
         }
         match result {
