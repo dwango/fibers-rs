@@ -20,8 +20,6 @@ use std::error;
 use std::fmt;
 use std::sync::mpsc::{RecvError, SendError};
 
-use super::Notifier;
-
 /// Creates a new asynchronous oneshot channel, returning the sender/receiver halves.
 ///
 /// # Examples
@@ -65,39 +63,25 @@ use super::Notifier;
 /// # }
 /// ```
 pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
-    let notifier = Notifier::new();
-    let (tx, rx) = nbchan::oneshot::channel();
-    (
-        Sender {
-            inner: Some(tx),
-            notifier: notifier.clone(),
-        },
-        Receiver {
-            inner: rx,
-            notifier,
-        },
-    )
+    let (tx, rx) = futures::sync::oneshot::channel();
+    (Sender { inner: tx }, Receiver { inner: rx })
 }
 
 /// The sending-half of an asynchronous oneshot channel.
 ///
 /// This structure can be used on both inside and outside of a fiber.
 pub struct Sender<T> {
-    inner: Option<nbchan::oneshot::Sender<T>>,
-    notifier: Notifier,
+    inner: futures::sync::oneshot::Sender<T>,
 }
 impl<T> Sender<T> {
     /// Sends a value on this asynchronous channel.
     ///
     /// This method will never block the current thread.
-    pub fn send(mut self, t: T) -> Result<(), SendError<T>> {
-        self.inner.take().expect("Never fails").send(t)?;
-        Ok(())
-    }
-}
-impl<T> Drop for Sender<T> {
-    fn drop(&mut self) {
-        self.notifier.notify();
+    pub fn send(self, t: T) -> Result<(), SendError<T>> {
+        match self.inner.send(t) {
+            Ok(()) => Ok(()),
+            Err(t) => Err(SendError(t)),
+        }
     }
 }
 impl<T> fmt::Debug for Sender<T> {
@@ -110,28 +94,16 @@ impl<T> fmt::Debug for Sender<T> {
 ///
 /// This structure can be used on both inside and outside of a fiber.
 pub struct Receiver<T> {
-    inner: nbchan::oneshot::Receiver<T>,
-    notifier: Notifier,
+    inner: futures::sync::oneshot::Receiver<T>,
 }
 impl<T> Future for Receiver<T> {
     type Item = T;
     type Error = RecvError;
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let mut result = self.inner.try_recv();
-        if let Err(nbchan::oneshot::TryRecvError::Empty) = result {
-            self.notifier.await_notification();
-            result = self.inner.try_recv();
+        match self.inner.poll() {
+            Ok(result) => Ok(result),
+            Err(futures::sync::oneshot::Canceled) => Err(RecvError),
         }
-        match result {
-            Err(nbchan::oneshot::TryRecvError::Empty) => Ok(Async::NotReady),
-            Err(nbchan::oneshot::TryRecvError::Disconnected) => Err(RecvError),
-            Ok(t) => Ok(Async::Ready(t)),
-        }
-    }
-}
-impl<T> Drop for Receiver<T> {
-    fn drop(&mut self) {
-        self.notifier.notify();
     }
 }
 impl<T> fmt::Debug for Receiver<T> {
