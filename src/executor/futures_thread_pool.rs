@@ -6,11 +6,10 @@ use futures03::compat::Future01CompatExt;
 use futures03::executor::ThreadPool as ThreadPool03;
 use futures03::task::FutureObj as FutureObj03;
 use futures03::FutureExt;
-use num_cpus;
 use std::io;
 
 use super::Executor;
-use fiber::Spawn;
+use crate::fiber::Spawn;
 
 /// An executor that executes spawned fibers on pooled threads.
 ///
@@ -82,6 +81,16 @@ impl Executor for ThreadPoolExecutor {
     }
     fn run_once(&mut self) -> io::Result<()> {
         Ok(())
+    }
+    /// Runs until the future is ready.
+    fn run_future<F: Future>(&mut self, future: F) -> io::Result<Result<F::Item, F::Error>> {
+        Ok(future.wait())
+    }
+
+    /// Runs infinitely until an error happens.
+    fn run(self) -> io::Result<()> {
+        // In this impl, run should never be called.
+        unreachable!("Don't call run directly!");
     }
 }
 impl Spawn for ThreadPoolExecutor {

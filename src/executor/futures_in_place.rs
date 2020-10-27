@@ -9,7 +9,7 @@ use futures03::FutureExt;
 use std::io;
 
 use super::Executor;
-use fiber::Spawn;
+use crate::fiber::Spawn;
 
 /// An executor that executes spawned fibers and I/O event polling on current thread.
 ///
