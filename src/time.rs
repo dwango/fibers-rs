@@ -8,8 +8,8 @@ pub mod timer {
     use std::sync::mpsc::RecvError;
     use std::time;
 
-    use fiber::{self, Context};
-    use io::poll;
+    use crate::fiber::{self, Context};
+    use crate::io::poll;
 
     /// A timer related extension of the `Future` trait.
     pub trait TimerExt: Sized + Future {

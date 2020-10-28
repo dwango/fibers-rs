@@ -14,7 +14,7 @@ use std::sync::Arc;
 pub use self::schedule::{with_current_context, yield_poll, Context};
 pub use self::schedule::{Scheduler, SchedulerHandle, SchedulerId};
 
-use sync::oneshot::{self, Link, Monitor};
+use crate::sync::oneshot::{self, Link, Monitor};
 
 mod schedule;
 
@@ -166,11 +166,7 @@ impl FiberState {
             self.parks -= 1;
             self.unparks.fetch_sub(1, atomic::Ordering::SeqCst);
         }
-        if let Ok(Async::NotReady) = self.task.0.poll() {
-            false
-        } else {
-            true
-        }
+        !matches!(self.task.0.poll(), Ok(Async::NotReady))
     }
     pub fn is_runnable(&self) -> bool {
         self.parks == 0 || self.unparks.load(atomic::Ordering::SeqCst) > 0

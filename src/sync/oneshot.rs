@@ -16,7 +16,6 @@
 //! The former essentially have the same semantics as the latter.
 //! But those are useful to clarify the intention of programmers.
 use futures::{Async, Future, Poll};
-use nbchan;
 use std::error;
 use std::fmt;
 use std::sync::mpsc::{RecvError, SendError};
@@ -120,7 +119,7 @@ impl<T> Future for Receiver<T> {
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let mut result = self.inner.try_recv();
         if let Err(nbchan::oneshot::TryRecvError::Empty) = result {
-            self.notifier.await();
+            self.notifier.await_notification();
             result = self.inner.try_recv();
         }
         match result {

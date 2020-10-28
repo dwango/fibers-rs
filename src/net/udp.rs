@@ -9,8 +9,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use super::{into_io_error, Bind};
-use io::poll::{EventedHandle, Interest};
-use sync::oneshot::Monitor;
+use crate::io::poll::{EventedHandle, Interest};
+use crate::sync::oneshot::Monitor;
 
 /// A User Datagram Protocol socket.
 ///

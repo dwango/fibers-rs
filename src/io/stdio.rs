@@ -8,7 +8,7 @@ use std::io::{self, Read};
 use std::sync::mpsc as std_mpsc;
 use std::thread;
 
-use sync::mpsc as fibers_mpsc;
+use crate::sync::mpsc as fibers_mpsc;
 
 macro_rules! break_if_err {
     ($e:expr) => {

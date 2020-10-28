@@ -8,8 +8,8 @@ use std::io;
 pub use self::in_place::{InPlaceExecutor, InPlaceExecutorHandle};
 pub use self::thread_pool::{ThreadPoolExecutor, ThreadPoolExecutorHandle};
 
-use fiber::Spawn;
-use sync::oneshot::{Monitor, MonitorError};
+use crate::fiber::Spawn;
+use crate::sync::oneshot::{Monitor, MonitorError};
 
 mod in_place;
 mod thread_pool;
