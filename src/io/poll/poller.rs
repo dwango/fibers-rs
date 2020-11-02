@@ -175,7 +175,7 @@ impl Poller {
             Request::Deregister(token) => {
                 let r = assert_some!(self.registrants.remove(&token));
                 if !r.is_first {
-                    self.poll.deregister(&*r.evented.0)?;
+                    self.mio_deregister(&*r.evented.0)?;
                 }
             }
             Request::Monitor(token, interest, notifier) => {
@@ -211,6 +211,26 @@ impl Poller {
             }
         }
         Ok(())
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "freebsd", target_os = "netbsd")))]
+    fn mio_deregister<E: ?Sized + mio::Evented>(&mut self, handle: &E) -> io::Result<()> {
+        self.poll.deregister(handle)
+    }
+    #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "netbsd"))]
+    fn mio_deregister<E: ?Sized + mio::Evented>(&mut self, handle: &E) -> io::Result<()> {
+        let result = self.poll.deregister(handle);
+        if let Err(e) = result.as_ref() {
+            if e.kind() == io::ErrorKind::NotFound {
+                // With kqueue backend, deregisterations may fail with the `NotFound` error kind.
+                // We don't know the exact reason of the failure, but it seems safe to ignore the error.
+                //
+                // FIXME: This is a workaround, so when `mio` resolves this problem, please remove this branch.
+                //
+                // See also: https://github.com/sile/fibers_rpc/issues/1
+                return Ok(());
+            }
+        }
+        result
     }
     fn next_token(&mut self) -> mio::Token {
         loop {
