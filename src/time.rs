@@ -13,9 +13,6 @@ pub mod timer {
     use std::sync::mpsc::RecvError;
     use std::time;
 
-    use crate::fiber::{self, Context};
-    use crate::io::poll;
-
     /// A timer related extension of the `Future` trait.
     pub trait TimerExt: Sized + Future {
         /// Adds the specified timeout to this future.
@@ -33,7 +30,9 @@ pub mod timer {
     }
     impl<T: Future> TimerExt for T {}
 
+    /// A timer related extension of the `Future03` trait.
     pub trait TimerExt03: Sized + Future03 {
+        /// Adds the specified timeout to this future.
         fn timeout_after(self, duration: time::Duration) -> TimeoutAfter03<Self> {
             let inner = tokio::time::timeout(duration, self);
             TimeoutAfter03 { inner }
@@ -56,6 +55,7 @@ pub mod timer {
         }
     }
 
+    /// A future03 which will try executing `T` within the specified time duration.
     #[pin_project]
     pub struct TimeoutAfter03<T> {
         #[pin]
@@ -112,7 +112,7 @@ pub mod timer {
     mod test {
         use super::*;
         use crate::executor::{Executor, ThreadPoolExecutor};
-        use futures::{self, Async, Future};
+        use futures::{self, Future};
         use std::time::Duration;
 
         #[test]

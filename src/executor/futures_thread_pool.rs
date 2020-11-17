@@ -3,8 +3,6 @@
 
 use futures::Future;
 use futures03::compat::Future01CompatExt;
-use futures03::executor::ThreadPool as ThreadPool03;
-use futures03::task::FutureObj as FutureObj03;
 use futures03::FutureExt;
 use std::io;
 use std::sync::Arc;
