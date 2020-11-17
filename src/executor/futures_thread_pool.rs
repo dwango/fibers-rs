@@ -7,6 +7,8 @@ use futures03::executor::ThreadPool as ThreadPool03;
 use futures03::task::FutureObj as FutureObj03;
 use futures03::FutureExt;
 use std::io;
+use std::sync::Arc;
+use tokio::runtime::Runtime as TokioRuntime;
 
 use super::Executor;
 use crate::fiber::Spawn;
@@ -40,7 +42,7 @@ use crate::fiber::Spawn;
 /// ```
 #[derive(Debug)]
 pub struct ThreadPoolExecutor {
-    pool: ThreadPool03,
+    pool: Arc<TokioRuntime>,
 }
 impl ThreadPoolExecutor {
     /// Creates a new instance of `ThreadPoolExecutor`.
@@ -68,8 +70,13 @@ impl ThreadPoolExecutor {
     /// a result of `run_once` method call after that.
     pub fn with_thread_count(count: usize) -> io::Result<Self> {
         assert!(count > 0);
-        let pool = ThreadPool03::builder().pool_size(count).create()?;
-        Ok(Self { pool })
+        let pool = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .worker_threads(count)
+            .build()?;
+        Ok(Self {
+            pool: Arc::new(pool),
+        })
     }
 }
 impl Executor for ThreadPoolExecutor {
@@ -79,12 +86,14 @@ impl Executor for ThreadPoolExecutor {
             pool: self.pool.clone(),
         }
     }
+    /// Does nothing. Futures are automatically polled.
     fn run_once(&mut self) -> io::Result<()> {
         Ok(())
     }
     /// Runs until the future is ready.
     fn run_future<F: Future>(&mut self, future: F) -> io::Result<Result<F::Item, F::Error>> {
-        Ok(future.wait())
+        println!("Run_future!!!!");
+        Ok(self.pool.block_on(future.compat()))
     }
 
     /// Runs infinitely until an error happens.
@@ -102,12 +111,11 @@ impl Spawn for ThreadPoolExecutor {
 /// A handle of a `ThreadPoolExecutor` instance.
 #[derive(Debug, Clone)]
 pub struct ThreadPoolExecutorHandle {
-    pool: ThreadPool03,
+    pool: Arc<TokioRuntime>,
 }
 impl Spawn for ThreadPoolExecutorHandle {
     fn spawn_boxed(&self, fiber: Box<dyn Future<Item = (), Error = ()> + Send>) {
         let future03 = fiber.compat().map(|_result| ());
-        let futureobj03: FutureObj03<()> = Box::new(future03).into();
-        self.pool.spawn_obj_ok(futureobj03);
+        self.pool.spawn(future03);
     }
 }

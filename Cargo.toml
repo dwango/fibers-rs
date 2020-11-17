@@ -17,7 +17,7 @@ travis-ci = {repository = "dwango/fibers-rs"}
 mio = "0.6"
 futures = "0.1"
 futures03 = {package = "futures", version = "0.3", features = ["thread-pool", "compat"]}
-tokio = {version = "0.3", features = ["time"]}
+tokio = {version = "0.3", features = ["time", "rt", "rt-multi-thread"]}
 splay_tree = "0.2"
 num_cpus = "1"
 nbchan = "0.1"

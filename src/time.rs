@@ -93,7 +93,12 @@ pub mod timer {
         type Item = ();
         type Error = RecvError;
         fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-            self.inner.poll().map_err(|_| RecvError)
+            match self.inner.poll() {
+                Ok(Async::NotReady) => Ok(Async::NotReady),
+                // Expired. Returning Ok(()).
+                Err(None) => Ok(Async::Ready(())),
+                _ => panic!(),
+            }
         }
     }
 
@@ -106,25 +111,18 @@ pub mod timer {
     #[cfg(test)]
     mod test {
         use super::*;
+        use crate::executor::{Executor, ThreadPoolExecutor};
         use futures::{self, Async, Future};
         use std::time::Duration;
 
         #[test]
         fn it_works() {
-            let mut timeout = timeout(Duration::from_secs(0));
-            assert_eq!(timeout.poll(), Ok(Async::Ready(())));
-        }
-
-        #[test]
-        fn timeout_after_works() {
-            let mut future = futures::empty::<(), ()>().timeout_after(Duration::from_secs(0));
-            assert_eq!(future.poll(), Err(None));
-
-            let mut future = futures::finished::<(), ()>(()).timeout_after(Duration::from_secs(1));
-            assert_eq!(future.poll(), Ok(Async::Ready(())));
-
-            let mut future = futures::failed::<(), ()>(()).timeout_after(Duration::from_secs(1));
-            assert_eq!(future.poll(), Err(Some(())));
+            let mut exec = ThreadPoolExecutor::new().unwrap();
+            // 直接 timeout を呼ぶと動かず、and_then の中で呼ぶと動く。
+            // おそらく and_then の中で読んだ場合、tokio の runtime の中で呼ばれるため。
+            let fut =
+                futures::future::ok::<(), _>(()).and_then(|()| timeout(Duration::from_secs(0)));
+            exec.run_future(fut).unwrap().unwrap();
         }
     }
 }
