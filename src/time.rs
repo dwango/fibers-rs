@@ -16,7 +16,7 @@ pub mod timer {
     /// A timer related extension of the `Future` trait.
     pub trait TimerExt: Sized + Future {
         /// Adds the specified timeout to this future.
-        fn timeout_after(self, duration: time::Duration) -> TimeoutAfter<Self> {
+        fn timeout_after(self, duration: time::Duration) -> TimeoutAfter<Self> where Self: Send {
             let fut03 = self.compat().timeout_after(duration).map(|x| match x {
                 None => Err(None),
                 Some(Ok(x)) => Ok(x),
@@ -45,7 +45,7 @@ pub mod timer {
     /// If the timeout duration passes, it will return `Err(None)`.
     /// If an error occurres before the expiration time, this will result in `Err(Some(T::Error))`.
     pub struct TimeoutAfter<T: Future + 'static> {
-        inner: Box<dyn Future<Item = T::Item, Error = Option<T::Error>>>,
+        inner: Box<dyn Future<Item = T::Item, Error = Option<T::Error>> + Send>,
     }
     impl<T: Future> Future for TimeoutAfter<T> {
         type Item = T::Item;
