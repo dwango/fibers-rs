@@ -4,9 +4,7 @@
 extern crate fibers;
 extern crate futures;
 
-use fibers::net::UdpSocket;
-use fibers::sync::oneshot;
-use fibers::{Executor, InPlaceExecutor, Spawn};
+use fibers::{net::UdpSocket, sync::oneshot, Executor, InPlaceExecutor, Spawn};
 use futures::Future;
 
 fn main() {
@@ -29,21 +27,19 @@ fn main() {
     );
 
     // Spawns sender
-    executor.spawn(
-        addr_rx
-            .map_err(|e| panic!("{:?}", e))
-            .and_then(|receiver_addr| {
-                UdpSocket::bind("127.0.0.1:0".parse().unwrap())
-                    .and_then(move |socket| {
-                        println!("# Send to: {}", receiver_addr);
-                        socket
-                            .send_to(b"hello world", receiver_addr)
-                            .map_err(|e| panic!("{:?}", e))
-                    })
-                    .map_err(|e| panic!("{:?}", e))
-                    .map(|_| ())
-            }),
-    );
+    executor.spawn(addr_rx.map_err(|e| panic!("{:?}", e)).and_then(
+        |receiver_addr| {
+            UdpSocket::bind("127.0.0.1:0".parse().unwrap())
+                .and_then(move |socket| {
+                    println!("# Send to: {}", receiver_addr);
+                    socket
+                        .send_to(b"hello world", receiver_addr)
+                        .map_err(|e| panic!("{:?}", e))
+                })
+                .map_err(|e| panic!("{:?}", e))
+                .map(|_| ())
+        },
+    ));
 
     // Runs until the receiver fiber exits.
     while monitor.poll().unwrap().is_not_ready() {

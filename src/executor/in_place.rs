@@ -2,12 +2,13 @@
 // See the LICENSE file at the top-level directory of this distribution.
 
 use futures::Future;
-use std::io;
-use std::time;
+use std::{io, time};
 
 use super::Executor;
-use crate::fiber::{self, Spawn};
-use crate::io::poll;
+use crate::{
+    fiber::{self, Spawn},
+    io::poll,
+};
 
 /// An executor that executes spawned fibers and I/O event polling on current thread.
 ///
@@ -45,7 +46,7 @@ use crate::io::poll;
 #[derive(Debug)]
 pub struct InPlaceExecutor {
     scheduler: fiber::Scheduler,
-    poller: poll::Poller,
+    poller:    poll::Poller,
 }
 impl InPlaceExecutor {
     /// Creates a new instance of `InPlaceExecutor`.
@@ -59,11 +60,13 @@ impl InPlaceExecutor {
 }
 impl Executor for InPlaceExecutor {
     type Handle = InPlaceExecutorHandle;
+
     fn handle(&self) -> Self::Handle {
         InPlaceExecutorHandle {
             scheduler: self.scheduler.handle(),
         }
     }
+
     fn run_once(&mut self) -> io::Result<()> {
         self.scheduler.run_once(false);
         self.poller.poll(Some(time::Duration::from_millis(1)))?;
@@ -71,7 +74,10 @@ impl Executor for InPlaceExecutor {
     }
 }
 impl Spawn for InPlaceExecutor {
-    fn spawn_boxed(&self, fiber: Box<dyn Future<Item = (), Error = ()> + Send>) {
+    fn spawn_boxed(
+        &self,
+        fiber: Box<dyn Future<Item = (), Error = ()> + Send>,
+    ) {
         self.handle().spawn_boxed(fiber)
     }
 }
@@ -82,7 +88,10 @@ pub struct InPlaceExecutorHandle {
     scheduler: fiber::SchedulerHandle,
 }
 impl Spawn for InPlaceExecutorHandle {
-    fn spawn_boxed(&self, fiber: Box<dyn Future<Item = (), Error = ()> + Send>) {
+    fn spawn_boxed(
+        &self,
+        fiber: Box<dyn Future<Item = (), Error = ()> + Send>,
+    ) {
         self.scheduler.spawn_boxed(fiber)
     }
 }

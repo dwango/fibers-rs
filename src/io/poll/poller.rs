@@ -3,17 +3,19 @@
 
 use futures::{self, Future};
 use nbchan::mpsc as nb_mpsc;
-use std::collections::HashMap;
-use std::fmt;
-use std::io;
-use std::sync::atomic::{self, AtomicUsize};
-use std::sync::mpsc::{RecvError, TryRecvError};
-use std::sync::Arc;
-use std::time;
+use std::{
+    collections::HashMap,
+    fmt, io,
+    sync::{
+        atomic::{self, AtomicUsize},
+        mpsc::{RecvError, TryRecvError},
+        Arc,
+    },
+    time,
+};
 
 use super::{EventedLock, Interest, SharableEvented};
-use crate::collections::HeapMap;
-use crate::sync::oneshot;
+use crate::{collections::HeapMap, sync::oneshot};
 
 type RequestSender = nb_mpsc::Sender<Request>;
 type RequestReceiver = nb_mpsc::Receiver<Request>;
@@ -30,9 +32,9 @@ impl fmt::Debug for MioEvents {
 
 #[derive(Debug)]
 struct Registrant {
-    is_first: bool,
-    evented: BoxEvented,
-    read_waitings: Vec<oneshot::Monitored<(), io::Error>>,
+    is_first:       bool,
+    evented:        BoxEvented,
+    read_waitings:  Vec<oneshot::Monitored<(), io::Error>>,
     write_waitings: Vec<oneshot::Monitored<(), io::Error>>,
 }
 impl Registrant {
@@ -44,6 +46,7 @@ impl Registrant {
             write_waitings: Vec::new(),
         }
     }
+
     pub fn mio_interest(&self) -> mio::Ready {
         (if self.read_waitings.is_empty() {
             mio::Ready::empty()
@@ -60,14 +63,14 @@ impl Registrant {
 /// I/O events poller.
 #[derive(Debug)]
 pub struct Poller {
-    poll: mio::Poll,
-    events: MioEvents,
-    request_tx: RequestSender,
-    request_rx: RequestReceiver,
-    next_token: usize,
+    poll:            mio::Poll,
+    events:          MioEvents,
+    request_tx:      RequestSender,
+    request_rx:      RequestReceiver,
+    next_token:      usize,
     next_timeout_id: Arc<AtomicUsize>,
-    registrants: HashMap<mio::Token, Registrant>,
-    timeout_queue: HeapMap<(time::Instant, usize), oneshot::Sender<()>>,
+    registrants:     HashMap<mio::Token, Registrant>,
+    timeout_queue:   HeapMap<(time::Instant, usize), oneshot::Sender<()>>,
 }
 impl Poller {
     /// Creates a new poller.
@@ -77,7 +80,8 @@ impl Poller {
         Self::with_capacity(DEFAULT_EVENTS_CAPACITY)
     }
 
-    /// Creates a new poller which has an event buffer of which capacity is `capacity`.
+    /// Creates a new poller which has an event buffer of which capacity is
+    /// `capacity`.
     ///
     /// For the detailed meaning of the `capacity` value,
     /// please see the [mio's documentation]
@@ -105,25 +109,29 @@ impl Poller {
         self.handle().register(evented)
     }
 
-    /// Blocks the current thread and wait until any events happen or `timeout` expires.
+    /// Blocks the current thread and wait until any events happen or `timeout`
+    /// expires.
     ///
-    /// On the former case, the poller notifies the fibers waiting on those events.
+    /// On the former case, the poller notifies the fibers waiting on those
+    /// events.
     pub fn poll(&mut self, timeout: Option<time::Duration>) -> io::Result<()> {
         let mut did_something = false;
 
         // Request
         match self.request_rx.try_recv() {
-            Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Empty) => {},
             Err(TryRecvError::Disconnected) => unreachable!(),
             Ok(r) => {
                 did_something = true;
                 self.handle_request(r)?;
-            }
+            },
         }
 
         // Timeout
         let now = time::Instant::now();
-        while let Some((_, notifier)) = self.timeout_queue.pop_if(|k, _| k.0 <= now) {
+        while let Some((_, notifier)) =
+            self.timeout_queue.pop_if(|k, _| k.0 <= now)
+        {
             let _ = notifier.send(());
         }
 
@@ -159,9 +167,9 @@ impl Poller {
     /// Makes a handle of the poller.
     pub fn handle(&self) -> PollerHandle {
         PollerHandle {
-            request_tx: self.request_tx.clone(),
+            request_tx:      self.request_tx.clone(),
             next_timeout_id: Arc::clone(&self.next_timeout_id),
-            is_alive: true,
+            is_alive:        true,
         }
     }
 
@@ -171,13 +179,13 @@ impl Poller {
                 let token = self.next_token();
                 self.registrants.insert(token, Registrant::new(evented));
                 (reply.0)(token);
-            }
+            },
             Request::Deregister(token) => {
                 let r = assert_some!(self.registrants.remove(&token));
                 if !r.is_first {
                     self.poll.deregister(&*r.evented.0)?;
                 }
-            }
+            },
             Request::Monitor(token, interest, notifier) => {
                 let r = assert_some!(self.registrants.get_mut(&token));
                 match interest {
@@ -187,19 +195,25 @@ impl Poller {
                 if r.read_waitings.len() == 1 || r.write_waitings.len() == 1 {
                     Self::mio_register(&self.poll, token, r)?;
                 }
-            }
+            },
             Request::SetTimeout(timeout_id, expiry_time, reply) => {
-                assert!(self
-                    .timeout_queue
-                    .push_if_absent((expiry_time, timeout_id), reply,));
-            }
+                assert!(
+                    self.timeout_queue
+                        .push_if_absent((expiry_time, timeout_id), reply,)
+                );
+            },
             Request::CancelTimeout(timeout_id, expiry_time) => {
                 self.timeout_queue.remove(&(expiry_time, timeout_id));
-            }
+            },
         }
         Ok(())
     }
-    fn mio_register(poll: &mio::Poll, token: mio::Token, r: &mut Registrant) -> io::Result<()> {
+
+    fn mio_register(
+        poll: &mio::Poll,
+        token: mio::Token,
+        r: &mut Registrant,
+    ) -> io::Result<()> {
         let interest = r.mio_interest();
         if interest != mio::Ready::empty() {
             let options = mio::PollOpt::edge() | mio::PollOpt::oneshot();
@@ -212,6 +226,7 @@ impl Poller {
         }
         Ok(())
     }
+
     fn next_token(&mut self) -> mio::Token {
         loop {
             let token = self.next_token;
@@ -227,9 +242,9 @@ impl Poller {
 /// A handle of a poller.
 #[derive(Debug, Clone)]
 pub struct PollerHandle {
-    request_tx: RequestSender,
+    request_tx:      RequestSender,
     next_timeout_id: Arc<AtomicUsize>,
-    is_alive: bool,
+    is_alive:        bool,
 }
 impl PollerHandle {
     /// Returns `true` if the original poller maybe alive, otherwise `false`.
@@ -261,13 +276,16 @@ impl PollerHandle {
         {
             self.is_alive = false;
         }
-        Register { rx }
+        Register {
+            rx,
+        }
     }
 
     fn set_timeout(&self, delay_from_now: time::Duration) -> Timeout {
         let (tx, rx) = oneshot::channel();
         let expiry_time = time::Instant::now() + delay_from_now;
-        let timeout_id = self.next_timeout_id.fetch_add(1, atomic::Ordering::SeqCst);
+        let timeout_id =
+            self.next_timeout_id.fetch_add(1, atomic::Ordering::SeqCst);
         let request = Request::SetTimeout(timeout_id, expiry_time, tx);
         let _ = self.request_tx.send(request);
         Timeout {
@@ -281,15 +299,18 @@ impl PollerHandle {
     }
 }
 
-pub fn set_timeout(poller: &PollerHandle, delay_from_now: time::Duration) -> Timeout {
+pub fn set_timeout(
+    poller: &PollerHandle,
+    delay_from_now: time::Duration,
+) -> Timeout {
     poller.set_timeout(delay_from_now)
 }
 
 #[derive(Debug)]
 struct CancelTimeout {
-    timeout_id: usize,
+    timeout_id:  usize,
     expiry_time: time::Instant,
-    request_tx: RequestSender,
+    request_tx:  RequestSender,
 }
 impl CancelTimeout {
     pub fn cancel(self) {
@@ -301,17 +322,18 @@ impl CancelTimeout {
 
 /// A future which will expire at the specified time instant.
 ///
-/// If this object is dropped before expiration, the timer will be cancelled.
-/// Thus, for example, the repetation of setting and canceling of
-/// a timer only consumpts constant memory region.
+/// If this object is dropped before expiration, the timer will be canceled.
+/// Thus, for example, the repetition of setting and canceling of a timer only
+/// consumes constant memory region.
 #[derive(Debug)]
 pub struct Timeout {
     cancel: Option<CancelTimeout>,
-    rx: oneshot::Receiver<()>,
+    rx:     oneshot::Receiver<()>,
 }
 impl Future for Timeout {
-    type Item = ();
     type Error = RecvError;
+    type Item = ();
+
     fn poll(&mut self) -> futures::Poll<Self::Item, Self::Error> {
         let result = self.rx.poll();
         if result != Ok(futures::Async::NotReady) {
@@ -334,8 +356,9 @@ pub struct Register<T> {
     rx: oneshot::Receiver<Arc<EventedHandle<T>>>,
 }
 impl<T> Future for Register<T> {
-    type Item = Arc<EventedHandle<T>>;
     type Error = RecvError;
+    type Item = Arc<EventedHandle<T>>;
+
     fn poll(&mut self) -> futures::Poll<Self::Item, Self::Error> {
         self.rx.poll()
     }
@@ -343,16 +366,20 @@ impl<T> Future for Register<T> {
 
 /// The handle of an evented object which has been registered in a poller.
 ///
-/// When all references of this handle are dropped,
-/// the corresponding entry in the poller is deregistered.
+/// When all references of this handle are dropped, the corresponding entry in
+/// the poller is unregistered.
 #[derive(Debug)]
 pub struct EventedHandle<T> {
-    token: mio::Token,
+    token:      mio::Token,
     request_tx: RequestSender,
-    inner: SharableEvented<T>,
+    inner:      SharableEvented<T>,
 }
 impl<T: mio::Evented> EventedHandle<T> {
-    fn new(inner: SharableEvented<T>, request_tx: RequestSender, token: mio::Token) -> Arc<Self> {
+    fn new(
+        inner: SharableEvented<T>,
+        request_tx: RequestSender,
+        token: mio::Token,
+    ) -> Arc<Self> {
         Arc::new(EventedHandle {
             token,
             request_tx,
@@ -361,7 +388,10 @@ impl<T: mio::Evented> EventedHandle<T> {
     }
 
     /// Monitors occurrence of an event specified by `interest`.
-    pub fn monitor(&self, interest: Interest) -> oneshot::Monitor<(), io::Error> {
+    pub fn monitor(
+        &self,
+        interest: Interest,
+    ) -> oneshot::Monitor<(), io::Error> {
         let (monitored, monitor) = oneshot::monitor();
         let _ = self
             .request_tx

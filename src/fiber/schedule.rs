@@ -2,14 +2,17 @@
 // See the LICENSE file at the top-level directory of this distribution.
 
 use futures::{Async, Future, Poll};
-use std::cell::RefCell;
-use std::collections::{HashMap, VecDeque};
-use std::sync::atomic;
-use std::sync::mpsc as std_mpsc;
+use std::{
+    cell::RefCell,
+    collections::{HashMap, VecDeque},
+    sync::{atomic, mpsc as std_mpsc},
+};
 
 use super::{FiberState, Spawn};
-use crate::fiber::{self, Task};
-use crate::io::poll;
+use crate::{
+    fiber::{self, Task},
+    io::poll,
+};
 
 static NEXT_SCHEDULER_ID: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
 
@@ -27,31 +30,32 @@ pub type SchedulerId = usize;
 
 /// Scheduler of spawned fibers.
 ///
-/// Scheduler manages spawned fibers state.
-/// If a fiber is in runnable state (e.g., not waiting for I/O events),
-/// the scheduler will push the fiber in it's run queue.
-/// When `run_once` method is called, the first fiber (i.e., future) in the queue
-/// will be poped and executed (i.e., `Future::poll` method is called).
-/// If the future of a fiber moves to readied state,
-/// it will be removed from the scheduler.
+/// Scheduler manages spawned fibers state. If a fiber is in runnable state
+/// (e.g., not waiting for I/O events), the scheduler will push the fiber in
+/// it's run queue. When `run_once` method is called, the first fiber (i.e.,
+/// future) in the queue will be popped and executed (i.e., `Future::poll`
+/// method is called). If the future of a fiber moves to readied state, it will
+/// be removed from the scheduler.
 
-/// For efficiency reasons, it is recommended to run a scheduler on a dedicated thread.
+/// For efficiency reasons, it is recommended to run a scheduler on a dedicated
+/// thread.
 #[derive(Debug)]
 pub struct Scheduler {
-    scheduler_id: SchedulerId,
+    scheduler_id:  SchedulerId,
     next_fiber_id: fiber::FiberId,
-    fibers: HashMap<fiber::FiberId, fiber::FiberState>,
-    run_queue: VecDeque<fiber::FiberId>,
-    request_tx: RequestSender,
-    request_rx: RequestReceiver,
-    poller: poll::PollerHandle,
+    fibers:        HashMap<fiber::FiberId, fiber::FiberState>,
+    run_queue:     VecDeque<fiber::FiberId>,
+    request_tx:    RequestSender,
+    request_rx:    RequestReceiver,
+    poller:        poll::PollerHandle,
 }
 impl Scheduler {
     /// Creates a new scheduler instance.
     pub fn new(poller: poll::PollerHandle) -> Self {
         let (request_tx, request_rx) = std_mpsc::channel();
         Scheduler {
-            scheduler_id: NEXT_SCHEDULER_ID.fetch_add(1, atomic::Ordering::SeqCst),
+            scheduler_id: NEXT_SCHEDULER_ID
+                .fetch_add(1, atomic::Ordering::SeqCst),
             next_fiber_id: 0,
             fibers: HashMap::new(),
             run_queue: VecDeque::new(),
@@ -71,7 +75,8 @@ impl Scheduler {
         self.run_queue.len()
     }
 
-    /// Returns the count of alive fibers (i.e., not readied futures) in this scheduler.
+    /// Returns the count of alive fibers (i.e., not readied futures) in this
+    /// scheduler.
     pub fn fiber_count(&self) -> usize {
         self.fibers.len()
     }
@@ -89,12 +94,12 @@ impl Scheduler {
         loop {
             // Request
             match self.request_rx.try_recv() {
-                Err(std_mpsc::TryRecvError::Empty) => {}
+                Err(std_mpsc::TryRecvError::Empty) => {},
                 Err(std_mpsc::TryRecvError::Disconnected) => unreachable!(),
                 Ok(request) => {
                     did_something = true;
                     self.handle_request(request);
-                }
+                },
             }
 
             // Task
@@ -120,15 +125,17 @@ impl Scheduler {
                 if self.fibers.contains_key(&fiber_id) {
                     self.schedule(fiber_id);
                 }
-            }
+            },
         }
     }
+
     fn spawn_fiber(&mut self, task: Task) {
         let fiber_id = self.next_fiber_id();
         self.fibers
             .insert(fiber_id, fiber::FiberState::new(fiber_id, task));
         self.schedule(fiber_id);
     }
+
     fn run_fiber(&mut self, fiber_id: fiber::FiberId) {
         let finished;
         let is_runnable = {
@@ -166,6 +173,7 @@ impl Scheduler {
             self.schedule(fiber_id);
         }
     }
+
     fn next_fiber_id(&mut self) -> fiber::FiberId {
         loop {
             let id = self.next_fiber_id;
@@ -175,6 +183,7 @@ impl Scheduler {
             }
         }
     }
+
     fn schedule(&mut self, fiber_id: fiber::FiberId) {
         let fiber = assert_some!(self.fibers.get_mut(&fiber_id));
         if !fiber.in_run_queue {
@@ -182,6 +191,7 @@ impl Scheduler {
             fiber.in_run_queue = true;
         }
     }
+
     fn next_runnable(&mut self) -> Option<fiber::FiberId> {
         while let Some(fiber_id) = self.run_queue.pop_front() {
             if let Some(fiber) = self.fibers.get_mut(&fiber_id) {
@@ -207,36 +217,41 @@ impl SchedulerHandle {
     }
 }
 impl Spawn for SchedulerHandle {
-    fn spawn_boxed(&self, fiber: Box<dyn Future<Item = (), Error = ()> + Send>) {
+    fn spawn_boxed(
+        &self,
+        fiber: Box<dyn Future<Item = (), Error = ()> + Send>,
+    ) {
         let _ = self.request_tx.send(Request::Spawn(Task(fiber)));
     }
 }
 
 #[derive(Debug)]
 pub struct CurrentScheduler {
-    pub id: SchedulerId,
+    pub id:     SchedulerId,
     pub handle: SchedulerHandle,
     pub poller: poll::PollerHandle,
 }
 
 /// Calls `f` with the current execution context.
 ///
-/// If this function is called on the outside of a fiber, it will ignores `f` and returns `None`.
+/// If this function is called on the outside of a fiber, it will ignores `f`
+/// and returns `None`.
 pub fn with_current_context<F, T>(f: F) -> Option<T>
 where
     F: FnOnce(Context) -> T,
 {
-    CURRENT_CONTEXT.with(|inner_context| inner_context.borrow_mut().as_context().map(f))
+    CURRENT_CONTEXT
+        .with(|inner_context| inner_context.borrow_mut().as_context().map(f))
 }
 
 /// The execution context of the currently running fiber.
 #[derive(Debug)]
 pub struct Context<'a> {
     scheduler: &'a mut CurrentScheduler,
-    fiber: &'a mut FiberState,
+    fiber:     &'a mut FiberState,
 }
 impl<'a> Context<'a> {
-    /// Returns the identifier of the current exeuction context.
+    /// Returns the identifier of the current execution context.
     pub fn context_id(&self) -> super::ContextId {
         (self.scheduler.id, self.fiber.fiber_id)
     }
@@ -305,27 +320,32 @@ pub fn yield_poll<T, E>() -> Poll<T, E> {
 #[derive(Debug)]
 struct InnerContext {
     pub scheduler: Option<CurrentScheduler>,
-    fiber: Option<*mut FiberState>,
+    fiber:         Option<*mut FiberState>,
 }
 impl InnerContext {
     fn new() -> Self {
         InnerContext {
             scheduler: None,
-            fiber: None,
+            fiber:     None,
         }
     }
+
     pub fn switch(&mut self, scheduler: &Scheduler) {
         self.scheduler = Some(CurrentScheduler {
-            id: scheduler.scheduler_id,
+            id:     scheduler.scheduler_id,
             handle: scheduler.handle(),
             poller: scheduler.poller.clone(),
         })
     }
+
     pub fn as_context(&mut self) -> Option<Context> {
         if let Some(scheduler) = self.scheduler.as_mut() {
             if let Some(fiber) = self.fiber {
                 let fiber = unsafe { &mut *fiber };
-                return Some(Context { scheduler, fiber });
+                return Some(Context {
+                    scheduler,
+                    fiber,
+                });
             }
         }
         None

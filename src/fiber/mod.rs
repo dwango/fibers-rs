@@ -3,16 +3,21 @@
 
 //! Fiber related components (for developers).
 //!
-//! Those are mainly exported for developers.
-//! So, usual users do not need to be conscious.
-use futures::future::Either;
-use futures::{self, Async, Future, IntoFuture, Poll};
-use std::fmt;
-use std::sync::atomic::{self, AtomicUsize};
-use std::sync::Arc;
+//! Those are mainly exported for developers. So, usual users do not need to be
+//! conscious.
+use futures::{self, future::Either, Async, Future, IntoFuture, Poll};
+use std::{
+    fmt,
+    sync::{
+        atomic::{self, AtomicUsize},
+        Arc,
+    },
+};
 
-pub use self::schedule::{with_current_context, yield_poll, Context};
-pub use self::schedule::{Scheduler, SchedulerHandle, SchedulerId};
+pub use self::schedule::{
+    with_current_context, yield_poll, Context, Scheduler, SchedulerHandle,
+    SchedulerId,
+};
 
 use crate::sync::oneshot::{self, Link, Monitor};
 
@@ -99,13 +104,13 @@ pub trait Spawn {
             match result {
                 Err(Either::A((result, link1))) => {
                     link1.exit(Err(result));
-                }
+                },
                 Ok(Either::A((result, link1))) => {
                     link1.exit(Ok(result));
-                }
+                },
                 _ => {
                     // Disconnected by `link0`
-                }
+                },
             }
             Ok(())
         });
@@ -122,14 +127,19 @@ pub trait Spawn {
     }
 }
 
-type BoxFn = Box<dyn Fn(Box<dyn Future<Item = (), Error = ()> + Send>) + Send + 'static>;
+type BoxFn =
+    Box<dyn Fn(Box<dyn Future<Item = (), Error = ()> + Send>) + Send + 'static>;
 
 /// Boxed `Spawn` object.
 pub struct BoxSpawn(BoxFn);
 impl Spawn for BoxSpawn {
-    fn spawn_boxed(&self, fiber: Box<dyn Future<Item = (), Error = ()> + Send>) {
+    fn spawn_boxed(
+        &self,
+        fiber: Box<dyn Future<Item = (), Error = ()> + Send>,
+    ) {
         (self.0)(fiber);
     }
+
     fn boxed(self) -> BoxSpawn
     where
         Self: Sized + Send + 'static,
@@ -145,10 +155,10 @@ impl fmt::Debug for BoxSpawn {
 
 #[derive(Debug)]
 struct FiberState {
-    pub fiber_id: FiberId,
-    task: Task,
-    parks: usize,
-    unparks: Arc<AtomicUsize>,
+    pub fiber_id:     FiberId,
+    task:             Task,
+    parks:            usize,
+    unparks:          Arc<AtomicUsize>,
     pub in_run_queue: bool,
 }
 impl FiberState {
@@ -161,6 +171,7 @@ impl FiberState {
             in_run_queue: false,
         }
     }
+
     pub fn run_once(&mut self) -> bool {
         if self.parks > 0 && self.unparks.load(atomic::Ordering::SeqCst) > 0 {
             self.parks -= 1;
@@ -168,9 +179,11 @@ impl FiberState {
         }
         !matches!(self.task.0.poll(), Ok(Async::NotReady))
     }
+
     pub fn is_runnable(&self) -> bool {
         self.parks == 0 || self.unparks.load(atomic::Ordering::SeqCst) > 0
     }
+
     pub fn park(
         &mut self,
         scheduler_id: schedule::SchedulerId,
@@ -184,6 +197,7 @@ impl FiberState {
             scheduler,
         }
     }
+
     pub fn yield_once(&mut self) {
         self.parks += 1;
         self.unparks.fetch_add(1, atomic::Ordering::SeqCst);
@@ -197,10 +211,10 @@ impl FiberState {
 /// This is created by calling `Context::park` method.
 #[derive(Debug)]
 pub struct Unpark {
-    fiber_id: FiberId,
-    unparks: Arc<AtomicUsize>,
+    fiber_id:     FiberId,
+    unparks:      Arc<AtomicUsize>,
     scheduler_id: schedule::SchedulerId,
-    scheduler: schedule::SchedulerHandle,
+    scheduler:    schedule::SchedulerHandle,
 }
 impl Unpark {
     /// Returns the identifier of the context on which this object was created.
@@ -233,19 +247,21 @@ impl<A: Future, B: Future> SelectEither<A, B> {
     }
 }
 impl<A: Future, B: Future> Future for SelectEither<A, B> {
-    type Item = Either<(A::Item, B), (A, B::Item)>;
     type Error = Either<(A::Error, B), (A, B::Error)>;
+    type Item = Either<(A::Item, B), (A, B::Item)>;
+
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let (mut a, mut b) = self.0.take().expect("Cannot poll SelectEither twice");
+        let (mut a, mut b) =
+            self.0.take().expect("Cannot poll SelectEither twice");
         match a.poll() {
             Err(e) => return Err(Either::A((e, b))),
             Ok(Async::Ready(v)) => return Ok(Async::Ready(Either::A((v, b)))),
-            Ok(Async::NotReady) => {}
+            Ok(Async::NotReady) => {},
         }
         match b.poll() {
             Err(e) => return Err(Either::B((a, e))),
             Ok(Async::Ready(v)) => return Ok(Async::Ready(Either::B((a, v)))),
-            Ok(Async::NotReady) => {}
+            Ok(Async::NotReady) => {},
         }
         self.0 = Some((a, b));
         Ok(Async::NotReady)

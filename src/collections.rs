@@ -7,8 +7,8 @@ use splay_tree::SplayMap;
 ///
 /// # Notice
 ///
-/// Unlink standard `BinaryHeap`, this heap
-/// pops the entry which has the smallest key in all entries.
+/// Unlink standard `BinaryHeap`, this heap pops the entry which has the
+/// smallest key in all entries.
 #[derive(Debug)]
 pub struct HeapMap<K, V> {
     inner: SplayMap<K, V>,
@@ -24,8 +24,7 @@ where
         }
     }
 
-    /// Pushes the entry in the heap, if an entry which has the `key`
-    /// would not exist.
+    /// Pushes the entry in the heap, if an entry which has the `key` would not exist.
     ///
     /// If the entry is inserted, this will return `true`, otherwise `false`.
     pub fn push_if_absent(&mut self, key: K, value: V) -> bool {
@@ -37,7 +36,8 @@ where
         }
     }
 
-    /// Pops the entry which has the smallest key if the predicate `f` would be satisfied.
+    /// Pops the entry which has the smallest key if the predicate `f` would be
+    /// satisfied.
     pub fn pop_if<F>(&mut self, f: F) -> Option<(K, V)>
     where
         F: FnOnce(&K, &V) -> bool,

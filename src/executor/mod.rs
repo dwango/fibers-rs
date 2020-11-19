@@ -5,11 +5,15 @@
 use futures::{Async, Future};
 use std::io;
 
-pub use self::in_place::{InPlaceExecutor, InPlaceExecutorHandle};
-pub use self::thread_pool::{ThreadPoolExecutor, ThreadPoolExecutorHandle};
+pub use self::{
+    in_place::{InPlaceExecutor, InPlaceExecutorHandle},
+    thread_pool::{ThreadPoolExecutor, ThreadPoolExecutorHandle},
+};
 
-use crate::fiber::Spawn;
-use crate::sync::oneshot::{Monitor, MonitorError};
+use crate::{
+    fiber::Spawn,
+    sync::oneshot::{Monitor, MonitorError},
+};
 
 mod in_place;
 mod thread_pool;
@@ -34,12 +38,15 @@ pub trait Executor: Sized {
     }
 
     /// Runs until the future is ready.
-    fn run_future<F: Future>(&mut self, mut future: F) -> io::Result<Result<F::Item, F::Error>> {
+    fn run_future<F: Future>(
+        &mut self,
+        mut future: F,
+    ) -> io::Result<Result<F::Item, F::Error>> {
         loop {
             match future.poll() {
                 Err(e) => return Ok(Err(e)),
                 Ok(Async::Ready(v)) => return Ok(Ok(v)),
-                Ok(Async::NotReady) => {}
+                Ok(Async::NotReady) => {},
             }
             self.run_once()?;
         }

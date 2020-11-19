@@ -3,10 +3,12 @@
 
 //! Non-blocking variants of standard I/O streams.
 use futures::{Async, Stream};
-use std::error;
-use std::io::{self, Read};
-use std::sync::mpsc as std_mpsc;
-use std::thread;
+use std::{
+    error,
+    io::{self, Read},
+    sync::mpsc as std_mpsc,
+    thread,
+};
 
 use crate::sync::mpsc as fibers_mpsc;
 
@@ -19,9 +21,11 @@ macro_rules! break_if_err {
     };
 }
 
-/// Returns a non-blocking variant of the standard input stream (i.e., `std::io::Stdin`).
+/// Returns a non-blocking variant of the standard input stream (i.e.,
+/// `std::io::Stdin`).
 ///
-/// This stream returns the `ErrorKind::WouldBlock` error, if an operation on it would block.
+/// This stream returns the `ErrorKind::WouldBlock` error, if an operation on it
+/// would block.
 pub fn stdin() -> Stdin {
     let (req_tx, req_rx) = std_mpsc::channel();
     let (res_tx, res_rx) = fibers_mpsc::channel();
@@ -59,8 +63,8 @@ pub fn stdin() -> Stdin {
 #[derive(Debug)]
 pub struct Stdin {
     lock_requested: bool,
-    req_tx: std_mpsc::Sender<usize>,
-    res_rx: fibers_mpsc::Receiver<io::Result<Vec<u8>>>,
+    req_tx:         std_mpsc::Sender<usize>,
+    res_rx:         fibers_mpsc::Receiver<io::Result<Vec<u8>>>,
 }
 impl Read for Stdin {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -77,7 +81,9 @@ impl Read for Stdin {
                 self.lock_requested = false;
                 self.req_tx.send(buf.len()).map_err(into_io_error)?;
                 loop {
-                    if let Async::Ready(result) = self.res_rx.poll().expect("unreachable") {
+                    if let Async::Ready(result) =
+                        self.res_rx.poll().expect("unreachable")
+                    {
                         let result = if let Some(result) = result {
                             result
                         } else {
@@ -89,11 +95,11 @@ impl Read for Stdin {
                                 let read_size = data.len();
                                 buf[..read_size].copy_from_slice(&data[..]);
                                 Ok(read_size)
-                            }
+                            },
                         };
                     }
                 }
-            }
+            },
         }
     }
 }
@@ -109,6 +115,8 @@ fn unexpected_eof() -> io::Error {
     )
 }
 
-fn into_io_error<E: error::Error + Send + Sync + 'static>(error: E) -> io::Error {
+fn into_io_error<E: error::Error + Send + Sync + 'static>(
+    error: E,
+) -> io::Error {
     io::Error::new(io::ErrorKind::Other, Box::new(error))
 }

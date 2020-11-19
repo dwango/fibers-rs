@@ -4,8 +4,7 @@
 //! Synchronization primitives.
 use std::sync::Arc;
 
-use crate::fiber;
-use crate::sync_atomic::AtomicCell;
+use crate::{fiber, sync_atomic::AtomicCell};
 
 pub mod mpsc;
 pub mod oneshot;
@@ -20,10 +19,12 @@ impl Notifier {
             unpark: Arc::new(AtomicCell::new(None)),
         }
     }
+
     pub fn await_notification(&mut self) {
         loop {
             if let Some(mut unpark) = self.unpark.try_borrow_mut() {
-                let context_id = fiber::with_current_context(|c| c.context_id());
+                let context_id =
+                    fiber::with_current_context(|c| c.context_id());
                 if unpark.as_ref().map(|u| u.context_id()) != context_id {
                     *unpark = fiber::with_current_context(|mut c| c.park());
                 }
@@ -31,6 +32,7 @@ impl Notifier {
             }
         }
     }
+
     pub fn notify(&self) {
         loop {
             if let Some(mut unpark) = self.unpark.try_borrow_mut() {

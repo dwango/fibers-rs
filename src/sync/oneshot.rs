@@ -16,9 +16,10 @@
 //! The former essentially have the same semantics as the latter.
 //! But those are useful to clarify the intention of programmers.
 use futures::{Async, Future, Poll};
-use std::error;
-use std::fmt;
-use std::sync::mpsc::{RecvError, SendError};
+use std::{
+    error, fmt,
+    sync::mpsc::{RecvError, SendError},
+};
 
 use super::Notifier;
 
@@ -54,8 +55,8 @@ use super::Notifier;
 ///     Ok(())
 /// });
 ///
-/// // It is allowed to send messages from the outside of a fiber.
-/// // (The same is true of receiving)
+/// // It is allowed to send messages from the outside of a fiber. (The same is
+/// // true of receiving)
 /// tx0.send("first value").unwrap();
 ///
 /// // Runs `executor` until the receiver exits (i.e., channel is disconnected)
@@ -69,7 +70,7 @@ pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let (tx, rx) = nbchan::oneshot::channel();
     (
         Sender {
-            inner: Some(tx),
+            inner:    Some(tx),
             notifier: notifier.clone(),
         },
         Receiver {
@@ -83,7 +84,7 @@ pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
 ///
 /// This structure can be used on both inside and outside of a fiber.
 pub struct Sender<T> {
-    inner: Option<nbchan::oneshot::Sender<T>>,
+    inner:    Option<nbchan::oneshot::Sender<T>>,
     notifier: Notifier,
 }
 impl<T> Sender<T> {
@@ -110,12 +111,13 @@ impl<T> fmt::Debug for Sender<T> {
 ///
 /// This structure can be used on both inside and outside of a fiber.
 pub struct Receiver<T> {
-    inner: nbchan::oneshot::Receiver<T>,
+    inner:    nbchan::oneshot::Receiver<T>,
     notifier: Notifier,
 }
 impl<T> Future for Receiver<T> {
-    type Item = T;
     type Error = RecvError;
+    type Item = T;
+
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let mut result = self.inner.try_recv();
         if let Err(nbchan::oneshot::TryRecvError::Empty) = result {
@@ -142,10 +144,9 @@ impl<T> fmt::Debug for Receiver<T> {
 
 /// Creates a oneshot channel for unidirectional monitoring.
 ///
-/// When `Monitored` object is (intentionally or unintentionally) dropped,
-/// the corresponding `Monitor` object will detect it and
-/// return the resulting value at the next time the `Future::poll` method is
-/// called on it.
+/// When `Monitored` object is (intentionally or unintentionally) dropped, the
+/// corresponding `Monitor` object will detect it and return the resulting value
+/// at the next time the `Future::poll` method is called on it.
 ///
 /// # Examples
 ///
@@ -162,9 +163,8 @@ impl<T> fmt::Debug for Receiver<T> {
 /// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (monitored, mut monitor) = oneshot::monitor();
 ///
-/// // Spawns monitored fiber
-/// // (In practice, spawning fiber via `spawn_monitor` function is
-/// //  more convenient way to archieve the same result)
+/// // Spawns monitored fiber (In practice, spawning fiber via `spawn_monitor`
+/// // function is more convenient way to archieve the same result)
 /// executor.spawn_fn(move || {
 ///     // Notifies the execution have completed successfully.
 ///     monitored.exit(Ok("succeeded") as Result<_, ()>);
@@ -197,9 +197,8 @@ impl<T> fmt::Debug for Receiver<T> {
 /// let mut executor = InPlaceExecutor::new().unwrap();
 /// let (monitored, mut monitor) = oneshot::monitor::<(),()>();
 ///
-/// // Spawns monitored fiber
-/// // (In practice, spawning fiber via `spawn_monitor` function is
-/// //  more convenient way to archieve the same result)
+/// // Spawns monitored fiber (In practice, spawning fiber via `spawn_monitor`
+/// // function is more convenient way to archieve the same result)
 /// executor.spawn_fn(move || {
 ///     let _ = monitored; // This fiber owns `monitored`
 ///     Ok(()) // Terminated before calling `Monitored::exit` method
@@ -223,7 +222,8 @@ impl<T> fmt::Debug for Receiver<T> {
 ///
 /// # Implementation Details
 ///
-/// Internally, this channel is almost the same as the one created by `channel` function.
+/// Internally, this channel is almost the same as the one created by `channel`
+/// function.
 pub fn monitor<T, E>() -> (Monitored<T, E>, Monitor<T, E>) {
     let (tx, rx) = channel();
     (Monitored(tx), Monitor(rx))
@@ -235,7 +235,8 @@ pub fn monitor<T, E>() -> (Monitored<T, E>, Monitor<T, E>) {
 #[derive(Debug)]
 pub struct Monitored<T, E>(Sender<Result<T, E>>);
 impl<T, E> Monitored<T, E> {
-    /// Notifies the monitoring peer that the monitored target has exited intentionally.
+    /// Notifies the monitoring peer that the monitored target has exited
+    /// intentionally.
     pub fn exit(self, result: Result<T, E>) {
         let _ = self.0.send(result);
     }
@@ -247,8 +248,9 @@ impl<T, E> Monitored<T, E> {
 #[derive(Debug)]
 pub struct Monitor<T, E>(Receiver<Result<T, E>>);
 impl<T, E> Future for Monitor<T, E> {
-    type Item = T;
     type Error = MonitorError<E>;
+    type Item = T;
+
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if let Async::Ready(r) = self.0.poll().or(Err(MonitorError::Aborted))? {
             match r {
@@ -317,7 +319,8 @@ impl<E> MonitorError<E> {
 
     /// Unwraps `MonitorError` and returns the internal error `E`.
     ///
-    /// If `self` is `MonitorError::Aborted`, the result of `f()` will be returned.
+    /// If `self` is `MonitorError::Aborted`, the result of `f()` will be
+    /// returned.
     pub fn unwrap_or_else<F>(self, f: F) -> E
     where
         F: FnOnce() -> E,
@@ -335,6 +338,7 @@ impl<E: error::Error> error::Error for MonitorError<E> {
             MonitorError::Failed(_) => "Monitor target failed: {}",
         }
     }
+
     fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             MonitorError::Aborted => None,
@@ -346,7 +350,9 @@ impl<E: fmt::Display> fmt::Display for MonitorError<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             MonitorError::Aborted => write!(f, "Monitor target aborted"),
-            MonitorError::Failed(ref e) => write!(f, "Monitor target failed: {}", e),
+            MonitorError::Failed(ref e) => {
+                write!(f, "Monitor target failed: {}", e)
+            },
         }
     }
 }
@@ -355,11 +361,19 @@ impl<E: fmt::Display> fmt::Display for MonitorError<E> {
 pub fn link<T0, E0, T1, E1>() -> LinkPair<T0, E0, T1, E1> {
     let (tx0, rx0) = monitor();
     let (tx1, rx1) = monitor();
-    (Link { tx: tx0, rx: rx1 }, Link { tx: tx1, rx: rx0 })
+    (
+        Link {
+            tx: tx0, rx: rx1
+        },
+        Link {
+            tx: tx1, rx: rx0
+        },
+    )
 }
 
 /// Bidirectional link pair.
-pub type LinkPair<T0, E0, T1, E1> = (Link<T0, E0, T1, E1>, Link<T1, E1, T0, E0>);
+pub type LinkPair<T0, E0, T1, E1> =
+    (Link<T0, E0, T1, E1>, Link<T1, E1, T0, E0>);
 
 /// The half of a link channel.
 ///
@@ -376,8 +390,9 @@ impl<T0, E0, T1, E1> Link<T0, E0, T1, E1> {
     }
 }
 impl<T0, E0, T1, E1> Future for Link<T0, E0, T1, E1> {
-    type Item = T1;
     type Error = MonitorError<E1>;
+    type Item = T1;
+
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         self.rx.poll()
     }

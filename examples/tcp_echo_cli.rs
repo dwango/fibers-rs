@@ -9,8 +9,10 @@ extern crate handy_async;
 use clap::{App, Arg};
 use fibers::{Executor, Spawn, ThreadPoolExecutor};
 use futures::{Future, Stream};
-use handy_async::io::{AsyncWrite, ReadFrom};
-use handy_async::pattern::AllowPartial;
+use handy_async::{
+    io::{AsyncWrite, ReadFrom},
+    pattern::AllowPartial,
+};
 
 fn main() {
     let matches = App::new("tcp_echo_cli")
@@ -33,10 +35,11 @@ fn main() {
         .parse()
         .expect("Invalid TCP address");
 
-    let mut executor = ThreadPoolExecutor::new().expect("Cannot create Executor");
+    let mut executor =
+        ThreadPoolExecutor::new().expect("Cannot create Executor");
     let handle = executor.handle();
-    let monitor = executor.spawn_monitor(fibers::net::TcpStream::connect(addr).and_then(
-        move |stream| {
+    let monitor = executor.spawn_monitor(
+        fibers::net::TcpStream::connect(addr).and_then(move |stream| {
             println!("# CONNECTED: {}", addr);
             let (reader, writer) = (stream.clone(), stream);
 
@@ -66,11 +69,14 @@ fn main() {
                 .map_err(|e| e.into_error())
                 .for_each(|(mut buf, len)| {
                     buf.truncate(len);
-                    println!("{}", String::from_utf8(buf).expect("Invalid UTF-8"));
+                    println!(
+                        "{}",
+                        String::from_utf8(buf).expect("Invalid UTF-8")
+                    );
                     Ok(())
                 })
-        },
-    ));
+        }),
+    );
     let result = executor.run_fiber(monitor).expect("Execution failed");
     println!("# Disconnected: {:?}", result);
 }

@@ -9,8 +9,10 @@ extern crate handy_async;
 use clap::{App, Arg};
 use fibers::{Executor, Spawn, ThreadPoolExecutor};
 use futures::{Future, Stream};
-use handy_async::io::{AsyncWrite, ReadFrom};
-use handy_async::pattern::AllowPartial;
+use handy_async::{
+    io::{AsyncWrite, ReadFrom},
+    pattern::AllowPartial,
+};
 use std::io;
 
 fn main() {
@@ -27,10 +29,11 @@ fn main() {
         .parse()
         .expect("Invalid TCP bind address");
 
-    let mut executor = ThreadPoolExecutor::new().expect("Cannot create Executor");
+    let mut executor =
+        ThreadPoolExecutor::new().expect("Cannot create Executor");
     let handle0 = executor.handle();
-    let monitor = executor.spawn_monitor(fibers::net::TcpListener::bind(addr).and_then(
-        move |listener| {
+    let monitor = executor.spawn_monitor(
+        fibers::net::TcpListener::bind(addr).and_then(move |listener| {
             println!("# Start listening: {}: ", addr);
             listener.incoming().for_each(move |(client, addr)| {
                 println!("# CONNECTED: {}", addr);
@@ -58,15 +61,18 @@ fn main() {
                             );
 
                             // reader
-                            let stream = vec![0; 1024].allow_partial().into_stream(reader);
-                            stream
-                                .map_err(|e| e.into_error())
-                                .fold(tx, |tx, (mut buf, len)| {
+                            let stream = vec![0; 1024]
+                                .allow_partial()
+                                .into_stream(reader);
+                            stream.map_err(|e| e.into_error()).fold(
+                                tx,
+                                |tx, (mut buf, len)| {
                                     buf.truncate(len);
                                     println!("# RECV: {} bytes", buf.len());
                                     tx.send(buf).expect("Cannot send");
                                     Ok(tx) as io::Result<_>
-                                })
+                                },
+                            )
                         })
                         .then(|r| {
                             println!("# Client finished: {:?}", r);
@@ -75,8 +81,8 @@ fn main() {
                 );
                 Ok(())
             })
-        },
-    ));
+        }),
+    );
     let result = executor.run_fiber(monitor).expect("Execution failed");
     println!("# Listener finished: {:?}", result);
 }

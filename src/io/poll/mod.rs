@@ -3,18 +3,18 @@
 
 //! I/O events polling functionalities (for developers).
 //!
-//! This module is mainly exported for developers.
-//! So, usual users do not need to be conscious.
+//! This module is mainly exported for developers. So, usual users do not need
+//! to be conscious.
 //!
 //! # Implementation Details
 //!
-//! This module is a wrapper of the [mio](https://github.com/carllerche/mio) crate.
-use std::io;
-use std::ops;
-use std::sync::Arc;
+//! This module is a wrapper of the [mio](https://github.com/carllerche/mio)
+//! crate.
+use std::{io, ops, sync::Arc};
 
-pub use self::poller::{EventedHandle, Poller, PollerHandle};
-pub use self::poller::{Register, DEFAULT_EVENTS_CAPACITY};
+pub use self::poller::{
+    EventedHandle, Poller, PollerHandle, Register, DEFAULT_EVENTS_CAPACITY,
+};
 
 use crate::sync_atomic::{AtomicBorrowMut, AtomicCell};
 
@@ -29,6 +29,7 @@ where
     pub fn new(inner: T) -> Self {
         SharableEvented(Arc::new(AtomicCell::new(inner)))
     }
+
     pub fn lock(&self) -> EventedLock<T> {
         loop {
             // NOTE: We assumes conflictions are very rare.
@@ -57,6 +58,7 @@ where
     ) -> io::Result<()> {
         self.lock().register(poll, token, interest, opts)
     }
+
     fn reregister(
         &self,
         poll: &mio::Poll,
@@ -66,6 +68,7 @@ where
     ) -> io::Result<()> {
         self.lock().reregister(poll, token, interest, opts)
     }
+
     fn deregister(&self, poll: &mio::Poll) -> io::Result<()> {
         self.lock().deregister(poll)
     }
@@ -75,6 +78,7 @@ where
 pub struct EventedLock<'a, T: 'a>(AtomicBorrowMut<'a, T>);
 impl<'a, T: 'a> ops::Deref for EventedLock<'a, T> {
     type Target = T;
+
     fn deref(&self) -> &T {
         &*self.0
     }

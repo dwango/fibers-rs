@@ -2,9 +2,10 @@
 // See the LICENSE file at the top-level directory of this distribution.
 
 #![allow(dead_code)]
-use std::ops;
-use std::ptr;
-use std::sync::atomic::{self, AtomicPtr};
+use std::{
+    ops, ptr,
+    sync::atomic::{self, AtomicPtr},
+};
 
 #[derive(Debug)]
 pub struct AtomicCell<T> {
@@ -17,6 +18,7 @@ impl<T> AtomicCell<T> {
             inner: AtomicPtr::new(Box::into_raw(boxed)),
         }
     }
+
     pub fn try_borrow_mut(&self) -> Option<AtomicBorrowMut<T>> {
         let old = self.inner.swap(ptr::null_mut(), atomic::Ordering::SeqCst);
         if old.is_null() {
@@ -26,6 +28,7 @@ impl<T> AtomicCell<T> {
             Some(AtomicBorrowMut::new(self, inner))
         }
     }
+
     pub fn try_borrow(&self) -> Option<AtomicBorrowRef<T>> {
         self.try_borrow_mut().map(AtomicBorrowRef)
     }
@@ -52,6 +55,7 @@ impl<'a, T> AtomicBorrowMut<'a, T> {
 }
 impl<'a, T> ops::Deref for AtomicBorrowMut<'a, T> {
     type Target = T;
+
     fn deref(&self) -> &T {
         &*assert_some!(self.inner.as_ref())
     }
@@ -72,6 +76,7 @@ impl<'a, T> Drop for AtomicBorrowMut<'a, T> {
 pub struct AtomicBorrowRef<'a, T: 'a>(AtomicBorrowMut<'a, T>);
 impl<'a, T> ops::Deref for AtomicBorrowRef<'a, T> {
     type Target = T;
+
     fn deref(&self) -> &T {
         &self.0
     }

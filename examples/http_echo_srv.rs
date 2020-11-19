@@ -10,8 +10,10 @@ extern crate httparse;
 use clap::{App, Arg};
 use fibers::{Executor, Spawn, ThreadPoolExecutor};
 use futures::{Future, Stream};
-use handy_async::io::{ReadFrom, WriteInto};
-use handy_async::pattern::{self, Branch, Pattern, Window};
+use handy_async::{
+    io::{ReadFrom, WriteInto},
+    pattern::{self, Branch, Pattern, Window},
+};
 use std::io;
 
 fn main() {
@@ -135,6 +137,8 @@ fn get_content_length(headers: &[httparse::Header]) -> io::Result<usize> {
         })
 }
 
-fn into_io_error<E: std::error::Error + Send + Sync + 'static>(e: E) -> io::Error {
+fn into_io_error<E: std::error::Error + Send + Sync + 'static>(
+    e: E,
+) -> io::Error {
     io::Error::new(io::ErrorKind::Other, Box::new(e))
 }

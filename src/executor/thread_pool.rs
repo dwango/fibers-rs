@@ -3,16 +3,14 @@
 
 use futures::{Async, Future};
 use nbchan::mpsc as nb_mpsc;
-use std::io;
-use std::sync::mpsc::TryRecvError;
-use std::thread;
-use std::time;
+use std::{io, sync::mpsc::TryRecvError, thread, time};
 
 use super::Executor;
-use crate::fiber::Task;
-use crate::fiber::{self, Spawn};
-use crate::io::poll;
-use crate::sync::oneshot::{self, Link};
+use crate::{
+    fiber::{self, Spawn, Task},
+    io::poll,
+    sync::oneshot::{self, Link},
+};
 
 /// An executor that executes spawned fibers on pooled threads.
 ///
@@ -43,37 +41,39 @@ use crate::sync::oneshot::{self, Link};
 /// ```
 #[derive(Debug)]
 pub struct ThreadPoolExecutor {
-    pool: SchedulerPool,
-    pollers: PollerPool,
+    pool:     SchedulerPool,
+    pollers:  PollerPool,
     spawn_rx: nb_mpsc::Receiver<Task>,
     spawn_tx: nb_mpsc::Sender<Task>,
-    round: usize,
-    steps: usize,
+    round:    usize,
+    steps:    usize,
 }
 impl ThreadPoolExecutor {
     /// Creates a new instance of `ThreadPoolExecutor`.
     ///
-    /// This is equivalent to `ThreadPoolExecutor::with_thread_count(num_cpus::get() * 2)`.
+    /// This is equivalent to
+    /// `ThreadPoolExecutor::with_thread_count(num_cpus::get() * 2)`.
     pub fn new() -> io::Result<Self> {
         Self::with_thread_count(num_cpus::get() * 2)
     }
 
-    /// Creates a new instance of `ThreadPoolExecutor` with the specified size of thread pool.
+    /// Creates a new instance of `ThreadPoolExecutor` with the specified size
+    /// of thread pool.
     ///
     /// # Implementation Details
     ///
-    /// Note that current implementation is very naive and
-    /// should be improved in future releases.
+    /// Note that current implementation is very naive and should be improved in
+    /// future releases.
     ///
     /// Internally, `count` threads are assigned to each of
     /// the scheduler (i.e., `fibers::fiber::Scheduler`) and
     /// the I/O poller (i.e., `fibers::io::poll::Poller`).
     ///
-    /// When `spawn` function is called, the executor will assign a scheduler (thread)
-    /// for the fiber in simple round robin fashion.
+    /// When `spawn` function is called, the executor will assign a scheduler
+    /// (thread) for the fiber in simple round robin fashion.
     ///
-    /// If any of those threads are aborted, the executor will return an error as
-    /// a result of `run_once` method call after that.
+    /// If any of those threads are aborted, the executor will return an error
+    /// as a result of `run_once` method call after that.
     pub fn with_thread_count(count: usize) -> io::Result<Self> {
         assert!(count > 0);
         let pollers = PollerPool::new(count)?;
@@ -91,22 +91,24 @@ impl ThreadPoolExecutor {
 }
 impl Executor for ThreadPoolExecutor {
     type Handle = ThreadPoolExecutorHandle;
+
     fn handle(&self) -> Self::Handle {
         ThreadPoolExecutorHandle {
             spawn_tx: self.spawn_tx.clone(),
         }
     }
+
     fn run_once(&mut self) -> io::Result<()> {
         match self.spawn_rx.try_recv() {
             Err(TryRecvError::Empty) => {
                 thread::sleep(time::Duration::from_millis(1));
-            }
+            },
             Err(TryRecvError::Disconnected) => unreachable!(),
             Ok(task) => {
                 let i = self.round % self.pool.schedulers.len();
                 self.pool.schedulers[i].spawn_boxed(task.0);
                 self.round = self.round.wrapping_add(1);
-            }
+            },
         }
         self.steps = self.steps.wrapping_add(1);
         let i = self.steps % self.pool.schedulers.len();
@@ -121,7 +123,10 @@ impl Executor for ThreadPoolExecutor {
     }
 }
 impl Spawn for ThreadPoolExecutor {
-    fn spawn_boxed(&self, fiber: Box<dyn Future<Item = (), Error = ()> + Send>) {
+    fn spawn_boxed(
+        &self,
+        fiber: Box<dyn Future<Item = (), Error = ()> + Send>,
+    ) {
         self.handle().spawn_boxed(fiber)
     }
 }
@@ -132,7 +137,10 @@ pub struct ThreadPoolExecutorHandle {
     spawn_tx: nb_mpsc::Sender<Task>,
 }
 impl Spawn for ThreadPoolExecutorHandle {
-    fn spawn_boxed(&self, fiber: Box<dyn Future<Item = (), Error = ()> + Send>) {
+    fn spawn_boxed(
+        &self,
+        fiber: Box<dyn Future<Item = (), Error = ()> + Send>,
+    ) {
         let _ = self.spawn_tx.send(Task(fiber));
     }
 }
@@ -140,7 +148,7 @@ impl Spawn for ThreadPoolExecutorHandle {
 #[derive(Debug)]
 struct PollerPool {
     pollers: Vec<poll::PollerHandle>,
-    links: Vec<Link<(), io::Error>>,
+    links:   Vec<Link<(), io::Error>>,
 }
 impl PollerPool {
     pub fn new(pool_size: usize) -> io::Result<Self> {
@@ -161,14 +169,17 @@ impl PollerPool {
                 }
             });
         }
-        Ok(PollerPool { pollers, links })
+        Ok(PollerPool {
+            pollers,
+            links,
+        })
     }
 }
 
 #[derive(Debug)]
 struct SchedulerPool {
     schedulers: Vec<fiber::SchedulerHandle>,
-    links: Vec<Link<(), ()>>,
+    links:      Vec<Link<(), ()>>,
 }
 impl SchedulerPool {
     pub fn new(poller_pool: &PollerPool) -> Self {
@@ -185,6 +196,9 @@ impl SchedulerPool {
                 }
             });
         }
-        SchedulerPool { schedulers, links }
+        SchedulerPool {
+            schedulers,
+            links,
+        }
     }
 }

@@ -3,14 +3,13 @@
 
 use futures::{Async, Future, Poll};
 use mio::net::UdpSocket as MioUdpSocket;
-use std::fmt;
-use std::io;
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{fmt, io, net::SocketAddr, sync::Arc};
 
 use super::{into_io_error, Bind};
-use crate::io::poll::{EventedHandle, Interest};
-use crate::sync::oneshot::Monitor;
+use crate::{
+    io::poll::{EventedHandle, Interest},
+    sync::oneshot::Monitor,
+};
 
 /// A User Datagram Protocol socket.
 ///
@@ -66,7 +65,11 @@ impl UdpSocket {
     }
 
     /// Makes a future to send data on the socket to the given address.
-    pub fn send_to<B: AsRef<[u8]>>(self, buf: B, target: SocketAddr) -> SendTo<B> {
+    pub fn send_to<B: AsRef<[u8]>>(
+        self,
+        buf: B,
+        target: SocketAddr,
+    ) -> SendTo<B> {
         SendTo(Some(SendToInner {
             socket: self,
             buf,
@@ -91,9 +94,9 @@ impl UdpSocket {
 
     /// Get the value of the `SO_ERROR` option on this socket.
     ///
-    /// This will retrieve the stored error in the underlying socket,
-    /// clearing the field in the process.
-    /// This can be useful for checking errors between calls.
+    /// This will retrieve the stored error in the underlying socket, clearing
+    /// the field in the process. This can be useful for checking errors between
+    /// calls.
     pub fn take_error(&self) -> io::Result<Option<io::Error>> {
         self.handle.inner().take_error()
     }
@@ -119,26 +122,33 @@ impl fmt::Debug for UdpSocket {
 
 /// A future which will create a UDP socket binded to the given address.
 ///
-/// This is created by calling `UdpSocket::bind` function.
-/// It is permitted to move the future across fibers.
+/// This is created by calling `UdpSocket::bind` function. It is permitted to
+/// move the future across fibers.
 ///
 /// # Panics
 ///
 /// If the future is polled on the outside of a fiber, it may crash.
 #[derive(Debug)]
-pub struct UdpSocketBind(Bind<fn(&SocketAddr) -> io::Result<MioUdpSocket>, MioUdpSocket>);
+pub struct UdpSocketBind(
+    Bind<fn(&SocketAddr) -> io::Result<MioUdpSocket>, MioUdpSocket>,
+);
 impl Future for UdpSocketBind {
-    type Item = UdpSocket;
     type Error = io::Error;
+    type Item = UdpSocket;
+
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        Ok(self.0.poll()?.map(|handle| UdpSocket { handle }))
+        Ok(self.0.poll()?.map(|handle| {
+            UdpSocket {
+                handle,
+            }
+        }))
     }
 }
 
 /// A future which will send data `B` on the socket to the given address.
 ///
-/// This is created by calling `UdpSocket::send_to` method.
-/// It is permitted to move the future across fibers.
+/// This is created by calling `UdpSocket::send_to` method. It is permitted to
+/// move the future across fibers.
 ///
 /// # Panics
 ///
@@ -146,20 +156,27 @@ impl Future for UdpSocketBind {
 #[derive(Debug)]
 pub struct SendTo<B>(Option<SendToInner<B>>);
 impl<B: AsRef<[u8]>> Future for SendTo<B> {
-    type Item = (UdpSocket, B, usize);
     type Error = (UdpSocket, B, io::Error);
+    type Item = (UdpSocket, B, usize);
+
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let mut state = self.0.take().expect("Cannot poll SendTo twice");
         loop {
             if let Some(mut monitor) = state.monitor.take() {
                 match monitor.poll() {
-                    Err(e) => return Err((state.socket, state.buf, into_io_error(e))),
+                    Err(e) => {
+                        return Err((
+                            state.socket,
+                            state.buf,
+                            into_io_error(e),
+                        ));
+                    },
                     Ok(Async::NotReady) => {
                         state.monitor = Some(monitor);
                         self.0 = Some(state);
                         return Ok(Async::NotReady);
-                    }
-                    Ok(Async::Ready(())) => {}
+                    },
+                    Ok(Async::Ready(())) => {},
                 }
             } else {
                 let result = state
@@ -170,12 +187,20 @@ impl<B: AsRef<[u8]>> Future for SendTo<B> {
                 match result {
                     Err(e) => {
                         if e.kind() == io::ErrorKind::WouldBlock {
-                            state.monitor = Some(state.socket.handle.monitor(Interest::Write));
+                            state.monitor = Some(
+                                state.socket.handle.monitor(Interest::Write),
+                            );
                         } else {
                             return Err((state.socket, state.buf, e));
                         }
-                    }
-                    Ok(size) => return Ok(Async::Ready((state.socket, state.buf, size))),
+                    },
+                    Ok(size) => {
+                        return Ok(Async::Ready((
+                            state.socket,
+                            state.buf,
+                            size,
+                        )));
+                    },
                 }
             }
         }
@@ -184,16 +209,16 @@ impl<B: AsRef<[u8]>> Future for SendTo<B> {
 
 #[derive(Debug)]
 struct SendToInner<B> {
-    socket: UdpSocket,
-    buf: B,
-    target: SocketAddr,
+    socket:  UdpSocket,
+    buf:     B,
+    target:  SocketAddr,
     monitor: Option<Monitor<(), io::Error>>,
 }
 
 /// A future which will receive data from the socket.
 ///
-/// This is created by calling `UdpSocket::recv_from` method.
-/// It is permitted to move the future across fibers.
+/// This is created by calling `UdpSocket::recv_from` method. It is permitted to
+/// move the future across fibers.
 ///
 /// # Panics
 ///
@@ -201,36 +226,51 @@ struct SendToInner<B> {
 #[derive(Debug)]
 pub struct RecvFrom<B>(Option<RecvFromInner<B>>);
 impl<B: AsMut<[u8]>> Future for RecvFrom<B> {
-    type Item = (UdpSocket, B, usize, SocketAddr);
     type Error = (UdpSocket, B, io::Error);
+    type Item = (UdpSocket, B, usize, SocketAddr);
+
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let mut state = self.0.take().expect("Cannot poll RecvFrom twice");
         loop {
             if let Some(mut monitor) = state.monitor.take() {
                 match monitor.poll() {
-                    Err(e) => return Err((state.socket, state.buf, into_io_error(e))),
+                    Err(e) => {
+                        return Err((
+                            state.socket,
+                            state.buf,
+                            into_io_error(e),
+                        ));
+                    },
                     Ok(Async::NotReady) => {
                         state.monitor = Some(monitor);
                         self.0 = Some(state);
                         return Ok(Async::NotReady);
-                    }
-                    Ok(Async::Ready(())) => {}
+                    },
+                    Ok(Async::Ready(())) => {},
                 }
             } else {
                 let mut buf = state.buf;
-                let result = state.socket.handle.inner().recv_from(buf.as_mut());
+                let result =
+                    state.socket.handle.inner().recv_from(buf.as_mut());
                 state.buf = buf;
                 match result {
                     Err(e) => {
                         if e.kind() == io::ErrorKind::WouldBlock {
-                            state.monitor = Some(state.socket.handle.monitor(Interest::Read));
+                            state.monitor = Some(
+                                state.socket.handle.monitor(Interest::Read),
+                            );
                         } else {
                             return Err((state.socket, state.buf, e));
                         }
-                    }
+                    },
                     Ok((size, addr)) => {
-                        return Ok(Async::Ready((state.socket, state.buf, size, addr)))
-                    }
+                        return Ok(Async::Ready((
+                            state.socket,
+                            state.buf,
+                            size,
+                            addr,
+                        )));
+                    },
                 }
             }
         }
@@ -239,7 +279,7 @@ impl<B: AsMut<[u8]>> Future for RecvFrom<B> {
 
 #[derive(Debug)]
 struct RecvFromInner<B> {
-    socket: UdpSocket,
-    buf: B,
+    socket:  UdpSocket,
+    buf:     B,
     monitor: Option<Monitor<(), io::Error>>,
 }

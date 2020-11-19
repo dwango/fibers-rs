@@ -3,11 +3,12 @@
 
 //! Multi-producer, single-consumer FIFO queue communication primitives.
 //!
-//! Basically, the structures in this module are thin wrapper of
-//! the standard [mpsc](https://doc.rust-lang.org/stable/std/sync/mpsc/) module's counterparts.
-//! The former implement [futures](https://github.com/alexcrichton/futures-rs) interface
-//! due to facilitate writing asynchronous processings and can wait efficiently on fibers
-//! until an event of interest happens.
+//! Basically, the structures in this module are thin wrapper of the standard
+//! [mpsc](https://doc.rust-lang.org/stable/std/sync/mpsc/) module's
+//! counterparts. The former implement
+//! [futures](https://github.com/alexcrichton/futures-rs) interface due to
+//! facilitate writing asynchronous processings and can wait efficiently on
+//! fibers until an event of interest happens.
 //!
 //! # Examples
 //!
@@ -35,8 +36,8 @@
 //!     Ok(())
 //! });
 //!
-//! // It is allowed to send messages from the outside of a fiber.
-//! // (The same is true of receiving)
+//! // It is allowed to send messages from the outside of a fiber. (The same is
+//! // true of receiving)
 //! tx0.send(0).unwrap();
 //! std::mem::drop(tx0);
 //!
@@ -48,28 +49,29 @@
 //!
 //! # Note
 //!
-//! Unlike `fibers::net` module, the structures in this module
-//! can be used on both inside and outside of a fiber.
+//! Unlike `fibers::net` module, the structures in this module can be used on
+//! both inside and outside of a fiber.
 //!
 //! # Implementation Details
 //!
-//! If a receiver tries to receive a message from an empty channel,
-//! it will suspend (deschedule) current fiber by invoking the function.
-//! Then it writes data which means "I'm waiting on this fiber" to
-//! an object shared with the senders.
-//! If a corresponding sender finds there is a waiting receiver,
-//! it will resume (reschedule) the fiber, after sending a message.
+//! If a receiver tries to receive a message from an empty channel, it will
+//! suspend (deschedule) current fiber by invoking the function. Then it writes
+//! data which means "I'm waiting on this fiber" to an object shared with the
+//! senders. If a corresponding sender finds there is a waiting receiver, it
+//! will resume (reschedule) the fiber, after sending a message.
 use futures::{Async, AsyncSink, Poll, Sink, StartSend, Stream};
 use nbchan::mpsc as nb_mpsc;
-use std::fmt;
-use std::sync::mpsc::{SendError, TryRecvError, TrySendError};
+use std::{
+    fmt,
+    sync::mpsc::{SendError, TryRecvError, TrySendError},
+};
 
 use super::Notifier;
 
 /// Creates a new asynchronous channel, returning the sender/receiver halves.
 ///
-/// All data sent on the sender will become available on the receiver,
-/// and no send will block the calling thread (this channel has an "infinite buffer").
+/// All data sent on the sender will become available on the receiver, and no
+/// send will block the calling thread (this channel has an "infinite buffer").
 ///
 /// # Examples
 ///
@@ -112,7 +114,7 @@ pub fn channel<T>() -> (Sender<T>, Receiver<T>) {
     let (tx, rx) = nb_mpsc::channel();
     (
         Sender {
-            inner: tx,
+            inner:    tx,
             notifier: notifier.clone(),
         },
         Receiver {
@@ -129,7 +131,7 @@ pub fn sync_channel<T>(bound: usize) -> (SyncSender<T>, Receiver<T>) {
     let (tx, rx) = nb_mpsc::sync_channel(bound);
     (
         SyncSender {
-            inner: tx,
+            inner:    tx,
             notifier: notifier.clone(),
         },
         Receiver {
@@ -141,11 +143,11 @@ pub fn sync_channel<T>(bound: usize) -> (SyncSender<T>, Receiver<T>) {
 
 /// The receiving-half of a mpsc channel.
 ///
-/// This receving stream will never fail.
+/// This receiving stream will never fail.
 ///
 /// This structure can be used on both inside and outside of a fiber.
 pub struct Receiver<T> {
-    inner: nb_mpsc::Receiver<T>,
+    inner:    nb_mpsc::Receiver<T>,
     notifier: Notifier,
 }
 impl<T> Stream for Receiver<T> {
@@ -154,6 +156,7 @@ impl<T> Stream for Receiver<T> {
     /// This stream will never result in an error.
     type Error = ();
     type Item = T;
+
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         let mut result = self.inner.try_recv();
         if let Err(TryRecvError::Empty) = result {
@@ -182,7 +185,7 @@ impl<T> fmt::Debug for Receiver<T> {
 ///
 /// This structure can be used on both inside and outside of a fiber.
 pub struct Sender<T> {
-    inner: nb_mpsc::Sender<T>,
+    inner:    nb_mpsc::Sender<T>,
     notifier: Notifier,
 }
 impl<T> Sender<T> {
@@ -200,11 +203,12 @@ impl<T> Sender<T> {
         self.inner.is_disconnected()
     }
 }
-unsafe impl<T: Send> Sync for Sender<T> {}
+unsafe impl<T: Send> Sync for Sender<T> {
+}
 impl<T> Clone for Sender<T> {
     fn clone(&self) -> Self {
         Sender {
-            inner: self.inner.clone(),
+            inner:    self.inner.clone(),
             notifier: self.notifier.clone(),
         }
     }
@@ -224,31 +228,37 @@ impl<T> fmt::Debug for Sender<T> {
 ///
 /// This structure can be used on both inside and outside of a fiber.
 pub struct SyncSender<T> {
-    inner: nb_mpsc::SyncSender<T>,
+    inner:    nb_mpsc::SyncSender<T>,
     notifier: Notifier,
 }
 impl<T> Sink for SyncSender<T> {
-    type SinkItem = T;
     type SinkError = SendError<T>;
-    fn start_send(&mut self, item: Self::SinkItem) -> StartSend<Self::SinkItem, Self::SinkError> {
+    type SinkItem = T;
+
+    fn start_send(
+        &mut self,
+        item: Self::SinkItem,
+    ) -> StartSend<Self::SinkItem, Self::SinkError> {
         match self.inner.try_send(item) {
             Err(TrySendError::Full(item)) => Ok(AsyncSink::NotReady(item)),
             Err(TrySendError::Disconnected(item)) => Err(SendError(item)),
             Ok(()) => {
                 self.notifier.notify();
                 Ok(AsyncSink::Ready)
-            }
+            },
         }
     }
+
     fn poll_complete(&mut self) -> Poll<(), Self::SinkError> {
         Ok(Async::Ready(()))
     }
 }
-unsafe impl<T: Send> Sync for SyncSender<T> {}
+unsafe impl<T: Send> Sync for SyncSender<T> {
+}
 impl<T> Clone for SyncSender<T> {
     fn clone(&self) -> Self {
         SyncSender {
-            inner: self.inner.clone(),
+            inner:    self.inner.clone(),
             notifier: self.notifier.clone(),
         }
     }
