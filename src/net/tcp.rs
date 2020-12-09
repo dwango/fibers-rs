@@ -446,3 +446,18 @@ impl Future for ConnectInner {
         }
     }
 }
+
+mod tests {
+    #[test]
+    fn async_works() {
+        use crate::ThreadPoolExecutor;
+        use crate::{Executor, Spawn};
+        use futures::Future;
+        let mut exec = ThreadPoolExecutor::new().unwrap();
+        let addr = "127.0.0.1:0".parse().unwrap();
+        let fut = crate::net::TcpStream::connect(addr);
+
+        exec.run_future(fut.map_err(|e| panic!("Spawn failed: server {}", e)))
+            .unwrap();
+    }
+}
