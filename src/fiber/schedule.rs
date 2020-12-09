@@ -31,7 +31,7 @@ pub type SchedulerId = usize;
 /// If a fiber is in runnable state (e.g., not waiting for I/O events),
 /// the scheduler will push the fiber in it's run queue.
 /// When `run_once` method is called, the first fiber (i.e., future) in the queue
-/// will be poped and executed (i.e., `Future::poll` method is called).
+/// will be popped and executed (i.e., `Future::poll` method is called).
 /// If the future of a fiber moves to readied state,
 /// it will be removed from the scheduler.
 
@@ -236,7 +236,7 @@ pub struct Context<'a> {
     fiber: &'a mut FiberState,
 }
 impl<'a> Context<'a> {
-    /// Returns the identifier of the current exeuction context.
+    /// Returns the identifier of the current execution context.
     pub fn context_id(&self) -> super::ContextId {
         (self.scheduler.id, self.fiber.fiber_id)
     }

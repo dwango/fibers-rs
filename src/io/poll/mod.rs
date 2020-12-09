@@ -31,7 +31,7 @@ where
     }
     pub fn lock(&self) -> EventedLock<T> {
         loop {
-            // NOTE: We assumes conflictions are very rare.
+            // NOTE: We assume conflicts are very rare.
             // (But should be refined in future releases)
             if let Some(inner) = self.0.try_borrow_mut() {
                 return EventedLock(inner);

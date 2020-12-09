@@ -141,7 +141,7 @@ pub fn sync_channel<T>(bound: usize) -> (SyncSender<T>, Receiver<T>) {
 
 /// The receiving-half of a mpsc channel.
 ///
-/// This receving stream will never fail.
+/// This receiving stream will never fail.
 ///
 /// This structure can be used on both inside and outside of a fiber.
 pub struct Receiver<T> {
