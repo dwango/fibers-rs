@@ -102,7 +102,7 @@
 //! let monitor = executor.spawn_monitor(future);
 //! let answer = executor.run_fiber(monitor).unwrap();
 //!
-//! // Checkes the answer.
+//! // Checks the answer.
 //! assert_eq!(answer, Ok(55));
 //! ```
 //!
@@ -138,7 +138,7 @@
 //!             // Spawns a fiber to handle the client.
 //!             handle0.spawn(client.and_then(move |client| {
 //!                     // For simplicity, splits reading process and
-//!                     // writing process into differrent fibers.
+//!                     // writing process into different fibers.
 //!                     let (reader, writer) = (client.clone(), client);
 //!                     let (tx, rx) = fibers::sync::mpsc::channel();
 //!

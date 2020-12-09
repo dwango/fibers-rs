@@ -47,9 +47,9 @@ pub mod timer {
 
     /// A future which will expire at the specified time instant.
     ///
-    /// If this object is dropped before expiration, the timer will be cancelled.
-    /// Thus, for example, the repetation of setting and canceling of
-    /// a timer only consumpts constant memory region.
+    /// If this object is dropped before expiration, the timer will be canceled.
+    /// Thus, for example, the repetition of setting and canceling of
+    /// a timer only consumes constant memory region.
     #[derive(Debug)]
     pub struct Timeout {
         start: time::Instant,

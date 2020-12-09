@@ -164,7 +164,7 @@ impl<T> fmt::Debug for Receiver<T> {
 ///
 /// // Spawns monitored fiber
 /// // (In practice, spawning fiber via `spawn_monitor` function is
-/// //  more convenient way to archieve the same result)
+/// //  more convenient way to achieve the same result)
 /// executor.spawn_fn(move || {
 ///     // Notifies the execution have completed successfully.
 ///     monitored.exit(Ok("succeeded") as Result<_, ()>);
@@ -199,7 +199,7 @@ impl<T> fmt::Debug for Receiver<T> {
 ///
 /// // Spawns monitored fiber
 /// // (In practice, spawning fiber via `spawn_monitor` function is
-/// //  more convenient way to archieve the same result)
+/// //  more convenient way to achieve the same result)
 /// executor.spawn_fn(move || {
 ///     let _ = monitored; // This fiber owns `monitored`
 ///     Ok(()) // Terminated before calling `Monitored::exit` method
