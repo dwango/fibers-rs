@@ -453,9 +453,11 @@ mod tests {
         use crate::ThreadPoolExecutor;
         use crate::{Executor, Spawn};
         use futures::Future;
+        use futures03::TryFutureExt;
+        use std::net::SocketAddr;
         let mut exec = ThreadPoolExecutor::new().unwrap();
-        let addr = "127.0.0.1:0".parse().unwrap();
-        let fut = crate::net::TcpStream::connect(addr);
+        let addr: SocketAddr = "127.0.0.1:180".parse().unwrap();
+        let fut = Box::pin(tokio::net::TcpStream::connect(addr)).compat();
 
         exec.run_future(fut.map_err(|e| panic!("Spawn failed: server {}", e)))
             .unwrap();
