@@ -448,6 +448,8 @@ impl Future for ConnectInner {
 }
 
 mod tests {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
     #[test]
     fn async_works() {
         use crate::ThreadPoolExecutor;
@@ -455,22 +457,49 @@ mod tests {
         use futures::Future;
         use futures03::TryFutureExt;
         use std::net::SocketAddr;
+        use std::sync::Arc;
         use std::time::Duration;
         let mut exec = ThreadPoolExecutor::new().unwrap();
         let addr: SocketAddr = "127.0.0.1:2525".parse().unwrap();
+        let flag = Arc::new(AtomicBool::new(false));
+        let flag_cp = flag.clone();
         let fut_listen_03 = async move {
             let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-            let conn = listener.accept().await.unwrap();
-            eprintln!("Connected!");
+            let (conn, addr) = listener.accept().await.unwrap();
+            eprintln!("Connected! addr = {:?}", addr);
+            let mut buf = vec![0; 10];
+            for i in 0..10 {
+                let read = conn.try_read(&mut buf);
+                eprintln!("read = {:?}, buf = {:?}", read, buf);
+                if read.is_ok() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_secs(1));
+            }
+            flag_cp.store(true, Ordering::SeqCst);
             Ok::<(), std::io::Error>(())
         };
         let fut_listen = Box::pin(fut_listen_03).compat();
-        let fut = Box::pin(tokio::net::TcpStream::connect(addr)).compat();
+        let fut_conn_03 = async move {
+            eprintln!("connecting...");
+            let str = tokio::net::TcpStream::connect(addr).await.unwrap();
+            for i in 0..10 {
+                let res = str.try_write(&[68, 69, 70, 71]);
+                eprintln!("write = {:?}", res);
+                if res.is_ok() {
+                    break;
+                }
+            }
+            Ok::<(), std::io::Error>(())
+        };
+        let fut = Box::pin(fut_conn_03).compat();
         exec.spawn(fut_listen.map_err(|e| panic!("Spawn failed: server {}", e)));
 
         std::thread::sleep(Duration::from_secs(1));
 
         exec.run_future(fut.map_err(|e| panic!("Spawn failed: client {}", e)))
+            .unwrap()
             .unwrap();
+        while !flag.load(Ordering::SeqCst) {}
     }
 }
