@@ -455,11 +455,22 @@ mod tests {
         use futures::Future;
         use futures03::TryFutureExt;
         use std::net::SocketAddr;
+        use std::time::Duration;
         let mut exec = ThreadPoolExecutor::new().unwrap();
-        let addr: SocketAddr = "127.0.0.1:180".parse().unwrap();
+        let addr: SocketAddr = "127.0.0.1:2525".parse().unwrap();
+        let fut_listen_03 = async move {
+            let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+            let conn = listener.accept().await.unwrap();
+            eprintln!("Connected!");
+            Ok::<(), std::io::Error>(())
+        };
+        let fut_listen = Box::pin(fut_listen_03).compat();
         let fut = Box::pin(tokio::net::TcpStream::connect(addr)).compat();
+        exec.spawn(fut_listen.map_err(|e| panic!("Spawn failed: server {}", e)));
 
-        exec.run_future(fut.map_err(|e| panic!("Spawn failed: server {}", e)))
+        std::thread::sleep(Duration::from_secs(1));
+
+        exec.run_future(fut.map_err(|e| panic!("Spawn failed: client {}", e)))
             .unwrap();
     }
 }
