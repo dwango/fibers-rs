@@ -90,7 +90,6 @@ impl Executor for ThreadPoolExecutor {
     }
     /// Runs until the future is ready.
     fn run_future<F: Future>(&mut self, future: F) -> io::Result<Result<F::Item, F::Error>> {
-        println!("Run_future!!!!");
         Ok(self.pool.block_on(future.compat()))
     }
 
