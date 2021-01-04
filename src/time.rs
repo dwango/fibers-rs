@@ -16,12 +16,15 @@ pub mod timer {
     /// A timer related extension of the `Future` trait.
     pub trait TimerExt: Sized + Future {
         /// Adds the specified timeout to this future.
-        fn timeout_after(self, duration: time::Duration) -> TimeoutAfter<Self> where Self: Send {
-            let fut03 = self.compat().timeout_after(duration).map(|x| match x {
+        fn timeout_after(self, duration: time::Duration) -> TimeoutAfter<Self>
+        where
+            Self: Send,
+        {
+            let fut03 = Box::pin(self.compat().timeout_after(duration).map(|x| match x {
                 None => Err(None),
                 Some(Ok(x)) => Ok(x),
                 Some(Err(x)) => Err(Some(x)),
-            });
+            }));
             //let fut03 = self.map_err(Some).compat();
             TimeoutAfter {
                 inner: Box::new(fut03.compat()),
