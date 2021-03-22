@@ -7,21 +7,12 @@ use std::io;
 
 pub use self::futures_in_place::{InPlaceExecutor, InPlaceExecutorHandle};
 pub use self::futures_thread_pool::{ThreadPoolExecutor, ThreadPoolExecutorHandle};
-pub use self::in_place::{
-    InPlaceExecutor as OldInPlaceExecutor, InPlaceExecutorHandle as OldInPlaceExecutorHandle,
-};
-pub use self::thread_pool::{
-    ThreadPoolExecutor as OldThreadPoolExecutor,
-    ThreadPoolExecutorHandle as OldThreadPoolExecutorHandle,
-};
 
 use crate::fiber::Spawn;
 use crate::sync::oneshot::{Monitor, MonitorError};
 
 mod futures_in_place;
 mod futures_thread_pool;
-mod in_place;
-mod thread_pool;
 
 /// The `Executor` trait allows for spawning and executing fibers.
 pub trait Executor: Sized {
