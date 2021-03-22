@@ -5,14 +5,14 @@
 use futures::{Async, Future};
 use std::io;
 
-pub use self::in_place::{InPlaceExecutor, InPlaceExecutorHandle};
-pub use self::thread_pool::{ThreadPoolExecutor, ThreadPoolExecutorHandle};
+pub use self::futures_in_place::{InPlaceExecutor, InPlaceExecutorHandle};
+pub use self::futures_thread_pool::{ThreadPoolExecutor, ThreadPoolExecutorHandle};
 
 use crate::fiber::Spawn;
 use crate::sync::oneshot::{Monitor, MonitorError};
 
-mod in_place;
-mod thread_pool;
+mod futures_in_place;
+mod futures_thread_pool;
 
 /// The `Executor` trait allows for spawning and executing fibers.
 pub trait Executor: Sized {

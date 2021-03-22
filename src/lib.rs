@@ -182,6 +182,7 @@
 #![warn(missing_docs)]
 
 extern crate futures;
+extern crate futures03;
 extern crate mio;
 extern crate nbchan;
 extern crate num_cpus;
@@ -209,8 +210,6 @@ pub use self::fiber::{BoxSpawn, Spawn};
 
 pub mod executor;
 pub mod fiber;
-pub mod io;
-pub mod net;
 pub mod sync;
 pub mod time;
 
