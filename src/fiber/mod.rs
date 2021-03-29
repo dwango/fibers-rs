@@ -8,7 +8,7 @@
 use futures::{self, Future, IntoFuture};
 use std::fmt;
 
-use crate::sync::oneshot::{self, Link, Monitor};
+use crate::sync::oneshot::{self, Monitor};
 
 /// The identifier of a fiber.
 ///
@@ -51,39 +51,6 @@ pub trait Spawn {
             Ok(())
         }));
         monitor
-    }
-
-    /// Spawns a linked fiber.
-    ///
-    /// If the returning `Link` is dropped, the spawned fiber will terminate.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # extern crate fibers;
-    /// # extern crate futures;
-    /// use fibers::sync::oneshot;
-    /// use fibers::{Executor, InPlaceExecutor, Spawn};
-    /// use futures::{Future, empty};
-    ///
-    /// let mut executor = InPlaceExecutor::new().unwrap();
-    /// let (tx, rx) = oneshot::channel();
-    /// let fiber = empty().and_then(move |()| tx.send(()));
-    ///
-    /// // Spawns `fiber` and drops `link`.
-    /// let link = executor.spawn_link(fiber);
-    /// std::mem::drop(link);
-    ///
-    /// // Channel `rx` is disconnected (e.g., `fiber` exited).
-    /// assert!(executor.run_future(rx).unwrap().is_err());
-    /// ```
-    fn spawn_link<F, T, E>(&self, _f: F) -> Link<(), (), T, E>
-    where
-        F: Future<Item = T, Error = E> + Send + 'static,
-        T: Send + 'static,
-        E: Send + 'static,
-    {
-        unreachable!()
     }
 
     /// Converts this instance into a boxed object.

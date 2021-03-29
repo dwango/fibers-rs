@@ -92,12 +92,6 @@ impl Executor for ThreadPoolExecutor {
     fn run_future<F: Future>(&mut self, future: F) -> io::Result<Result<F::Item, F::Error>> {
         Ok(self.pool.block_on(future.compat()))
     }
-
-    /// Runs infinitely until an error happens.
-    fn run(self) -> io::Result<()> {
-        // In this impl, run should never be called.
-        unreachable!("Don't call run directly!");
-    }
 }
 impl Spawn for ThreadPoolExecutor {
     fn spawn_boxed(&self, fiber: Box<dyn Future<Item = (), Error = ()> + Send>) {
