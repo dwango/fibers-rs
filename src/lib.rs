@@ -213,5 +213,4 @@ pub mod fiber;
 pub mod sync;
 pub mod time;
 
-mod collections;
 mod sync_atomic;

@@ -5,11 +5,8 @@
 //!
 //! Those are mainly exported for developers.
 //! So, usual users do not need to be conscious.
-use futures::future::Either;
-use futures::{self, Async, Future, IntoFuture, Poll};
+use futures::{self, Future, IntoFuture};
 use std::fmt;
-use std::sync::atomic::{self, AtomicUsize};
-use std::sync::Arc;
 
 use crate::sync::oneshot::{self, Link, Monitor};
 
@@ -80,7 +77,7 @@ pub trait Spawn {
     /// // Channel `rx` is disconnected (e.g., `fiber` exited).
     /// assert!(executor.run_future(rx).unwrap().is_err());
     /// ```
-    fn spawn_link<F, T, E>(&self, f: F) -> Link<(), (), T, E>
+    fn spawn_link<F, T, E>(&self, _f: F) -> Link<(), (), T, E>
     where
         F: Future<Item = T, Error = E> + Send + 'static,
         T: Send + 'static,
